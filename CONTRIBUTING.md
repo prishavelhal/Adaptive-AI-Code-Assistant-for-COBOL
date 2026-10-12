@@ -3,7 +3,7 @@
 *How to set up, code, test, review, and release so contributions meet our Definition of Done.*
 
 To contribute, simply create your own branch and make your desired contributions, then open a pull request. The tests will automatically run when your pull request is opened.
-Once your PR is approved, It will automatically get merged into main.
+Once your PR is approved, it will automatically get merged into main.
 
 
 ## Code of Conduct
