@@ -57,14 +57,23 @@ We are still figuring out what formatter/linters we will be using, so this secti
 *Define required test types, how to run tests, expected coverage thresholds, and when new/updated tests are mandatory.*
 
 - Required types: unit tests, integration tests, end-to-end tests
-- How to run tests: Through github workflows, tests will run automatically when a PR is opened. You can also run them anytime with github actions.
+- How to run tests: Through github workflows, tests will run automatically when a PR is opened. We can also run them anytime with github actions.
 - Expected coverage thresholds: unit tests -> small features. Integration tests -> small workflows. End-to-end: entire workflows.
 
 ## Definition of Done
 
-*List the checks a change must pass before it merges (tests, review, docs updated, lint and security checks), each with the CI job, hook, or test that enforces it. For a gate not built yet, name the sprint it lands in and its owner.*
+A change is ready to merge only when it passes every check below. Checks marked
+"Planned" are not enforced yet; until they are, reviewers verify them manually.
 
-Before a change merges, it must pass all code and linting/formatting tests (done using hook through github actions, managed by Quinn and Jack). The sprint it will be implemented in is currently unknown.
+| # | Check | How it's enforced | Status | Owner | Target sprint |
+|---|-------|-------------------|--------|-------|---------------|
+| 1 | Code passes linting and formatting | GitHub Actions workflow `lint.yml` (TBD: tool, likely ESLint) | Planned | Quinn, Jack | TBD |
+| 2 | All unit and integration tests pass | GitHub Actions workflow `test.yml` runs the full suite on every PR | Planned | Likely Jack | TBD |
+| 3 | At least one teammate has reviewed and approved | Branch protection on `main`: 1 required approval, no direct pushes | Planned | Any. Prisha gets final say. | TBD |
+| 4 | Docs updated (README, setup steps, or API docs if behavior changed) | PR template checkbox, confirmed by reviewer | Planned | Any | TBD |
+| 5 | No secrets or vulnerable dependencies | GitHub secret scanning, can add other tools if necessary | Planned | TBD | TBD |
+| 6 | Chatbot answers improve, no backwards progress | Eval script runs a fixed set of COBOL questions and fails if accuracy drops below TBD% | Planned | TBD | TBD |
+| 7 | Sample COBOL code in lessons compiles | CI job compiles examples | Planned | TBD | TBD |
 
 
 ## Contribution Norm
