@@ -1,0 +1,11 @@
+{
+  "name": "adaptive-ai-code-assistant-for-cobol",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests added yet\""
+  },
+  "author": "",
+  "license": "ISC"
+}
