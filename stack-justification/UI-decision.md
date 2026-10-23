@@ -21,4 +21,12 @@ A chat panel on the right side of the screen similar to VSCode Copilot chat, nex
 
 **Decision:** Vue has been chosen as the framework as React requires fewer decisions to coordinate and less chances of discoordinated decisions.
 
+## Stack
+Frontend:
+1. VSCode Extension API, TypeScript, esbuild
+2. Vue.js
+3. SSE client for streaming from the backend
+4. Adaptive layer: 5-slider style profiles plus prompt templates from the paper
+
+
 **Reasoning:** Even though React has stronger team familiarity, it requires more conventions to agree on, which will raise a risk of inconsistent decisions across teams working in parallel. Vue's framework mean less perfectly coordinated decisions especially with a group as big as ours. Vue is also a framework with a lower learning curve, meaning the lost of familiarity is not a big loss.
