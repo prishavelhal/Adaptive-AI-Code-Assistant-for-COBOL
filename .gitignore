@@ -1,0 +1,25 @@
+# --- Secrets / env ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Node / Vue / VS Code extension ---
+node_modules/
+dist/
+out/
+*.vsix
+.vite/
+.vscode-test/
+npm-debug.log*
