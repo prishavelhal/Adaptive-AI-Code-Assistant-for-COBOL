@@ -1,6 +1,6 @@
 <!-- docs/rfcs/YYYY-MM-DD-short-title.md (or docs/adr/, whichever your repo uses) -->
 
-# RFC: [Short, Specific Title]
+# RFC: Adaptive AI Code Assistant Tool as a VS Code extension
 
 <!--Proposed-->
 
