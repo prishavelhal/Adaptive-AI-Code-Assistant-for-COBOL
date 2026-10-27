@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: ./backend                    # builds from backend/Dockerfile
+    ports:
+      - "8000:8000"                     # laptop:container
+    env_file:
+      - path: .env
+        required: false                 # works even if we haven't made a .env yet
+    environment:
+      # Default: talk to Ollama running natively on a PC/laptop
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-granite-placeholder}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # makes host.docker.internal work on Linux too (smooches for Taylor)
+    volumes:
+      - ./backend:/app                  # live code: edits on your laptop show up in the container
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
