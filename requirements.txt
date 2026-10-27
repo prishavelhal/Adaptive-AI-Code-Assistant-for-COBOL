@@ -1,0 +1,7 @@
+# App dependencies
+-r backend/requirements.txt
+
+# Dev tools
+pytest
+ruff
+pre-commit
