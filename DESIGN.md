@@ -40,7 +40,3 @@ The extension is intended to run in VS Code, with a separate backend for retriev
 **Deferred:** model/provider, backend framework and hosting, knowledge-base corpus and retrieval technology, exact slider meanings and ranges, authentication, code retention/logging, extension release channel, and evaluation measures.
 
 Before implementation, the team needs to decide where the skeleton will run, which public sources it will cite, how profile values affect explanations, how user code is handled, and what tests demonstrate correct retrieval and request/stream behavior. Record hard-to-reverse decisions in the project’s RFC/ADR location and update this document to match the implementation.
-
-## Verification and safeguards
-
-CI should build the components that exist and run tests on every pull request. At least one test should check a known behavior and fail when that behavior breaks. The team should name a preview/test environment and rollback path in `README.md` or `docs/risks.md`; these remain plans until the deployment target is agreed. Require review for changes to API contracts, data formats, authentication, and deployment configuration, following `CONTRIBUTING.md`.
