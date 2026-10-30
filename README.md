@@ -1,14 +1,27 @@
-# Adaptive-AI-Code-Assistant-for-COBOL
+# Adaptive AI Code Assistant for COBOL
 
-The project is expected to achieve the following:
+An AI code assistant that explains how COBOL code works with the learning style of developers, built as a proof of concept aligned with IBM's COBOL modernization efforts.
 
-Define the technical requirements, system architecture, and adaptive output criteria for the AI code assistant.
-Build a knowledge base using public COBOL documentation and sample applications.
-Develop a retrieval-augmented generation pipeline for grounding AI responses in relevant COBOL code and documentation.
-Implement an adaptive response-generation layer that adjusts the structure, detail, and format of explanations based on different cognitive approaches.
-Develop backend services and agentic workflows for code analysis, retrieval, model orchestration, and response generation.
-Build a frontend interface capable of presenting and coordinating multiple AI and data streams.
-Create an evaluation framework for measuring response accuracy, relevance, hallucinations, and improvements in code comprehension.
-Final Deliverable: A working proof of concept that improves COBOL code comprehension and onboarding for developers with varied experience levels and cognitive approaches.
+## Installation
 
-The project’s long-term vision is to demonstrate how adaptive AI could support IBM’s broader COBOL modernization efforts, expand the pipeline of developers capable of working with COBOL, and reduce the cost, risk, and knowledge barriers involved in maintaining mission-critical systems.
+1. Clone the repository then change directories to it:
+   ```bash
+   cd Adaptive-AI-Code-Assistant-for-COBOL
+   ```
+2. Install frontend dependencies:
+   ```bash
+   npm install
+   ```
+## Usage
+
+1. Open a COBOL file in VS Code.
+2. Open the assistant's chat panel.
+3. Select a section of code and ask for an explanation
+4. Choose or adjust the explanation style that fits how you like to learn.
+
+> This project is in early development, so some features described here are still being built.
+
+
+## Contributing
+
+Our guide for contributing can be found in our [contributing guide](CONTRIBUTING.md)
