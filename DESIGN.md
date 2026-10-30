@@ -31,7 +31,7 @@ Core data includes the request and profile, indexed public source passages, gene
 
 ## Deployment target
 
-The extension is intended to run in VS Code, with a separate backend for retrieval and generation. The week-10 walking skeleton’s host and extension test/distribution channel are **TBD**. The account or infrastructure owner and the partner or mentor who agreed to the target are also **TBD**. Fill these in before checkpoint submission; record any required approval in `docs/risks.md`. If the team will not deploy, document the reason and the equivalent milestone agreed with the instruction team.
+The extension is intended to run in VS Code, with a separate backend for retrieval and generation. The week-10 walking skeleton’s host and extension test/distribution channel are to be deployed by week 10 and 11. 
 
 ## Decisions and open questions
 
