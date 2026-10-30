@@ -3,6 +3,5 @@
 
 # Dev tools
 pytest
-httpx               # needed for testing FastAPI endpoints
 ruff
 pre-commit
