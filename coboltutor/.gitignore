@@ -1,0 +1,17 @@
+# --- Python (backend) ---
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+
+# --- Node (extension) ---
+node_modules/
+extension/dist/
+*.vsix
+
+# --- Editors / OS ---
+.DS_Store
+.idea/

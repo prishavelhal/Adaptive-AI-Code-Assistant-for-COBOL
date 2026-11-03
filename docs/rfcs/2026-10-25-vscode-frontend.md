@@ -1,4 +1,4 @@
-<!-- docs/rfcs/YYYY-MM-DD-short-title.md (or docs/adr/, whichever your repo uses) -->
+<!-- docs/rfcs/2026-10-26-vscode-frontend.md (or docs/adr/, whichever your repo uses) -->
 
 # RFC: [Using Visual Studio Code as a Frontend]
 

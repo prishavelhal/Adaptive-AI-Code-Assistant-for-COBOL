@@ -1,0 +1,15 @@
+// Press F5 (with this repo folder open in VSCode) to start an "Extension
+// Development Host": a second VSCode window running the extension from source.
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run CobolTutor extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/extension"],
+      "outFiles": ["${workspaceFolder}/extension/dist/**/*.js"],
+      "preLaunchTask": "build extension"
+    }
+  ]
+}

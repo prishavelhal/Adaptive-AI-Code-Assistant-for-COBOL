@@ -1,0 +1,9 @@
+# Keep the Docker build context small, and keep local artifacts out of the image.
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.env
+tests
