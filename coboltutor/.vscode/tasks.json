@@ -1,0 +1,13 @@
+// Build task used by launch.json before starting the Extension Development Host.
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build extension",
+      "type": "shell",
+      "command": "pnpm build",
+      "options": { "cwd": "${workspaceFolder}/extension" },
+      "problemMatcher": []
+    }
+  ]
+}

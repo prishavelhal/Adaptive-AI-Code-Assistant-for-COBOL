@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# CobolTutor backend - Python project definition (managed by `uv`).
+#
+# `uv sync` installs everything listed here into backend/.venv, using the
+# exact versions pinned in uv.lock so every developer (and CI, and the Docker
+# image) gets an identical environment.
+# ---------------------------------------------------------------------------
+[project]
+name = "coboltutor-backend"
+version = "0.1.0"
+description = "FastAPI service that streams COBOL tutoring answers from IBM Granite (via Ollama) over Server-Sent Events."
+readme = "README.md"
+authors = [
+    { name = "Taylor Hacker", email = "taylorahacker@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    # Web framework + ASGI server that actually listens on the port.
+    "fastapi>=0.162.0",
+    "uvicorn[standard]>=0.54.0",
+    # Official OpenAI SDK. We only use it as a generic client for Ollama's
+    # OpenAI-compatible /v1 API - no requests ever go to OpenAI itself.
+    "openai>=3.39.0",
+    # Reads configuration from environment variables / a .env file.
+    "pydantic-settings>=2.16.1",
+]
+
+[project.scripts]
+# `uv run coboltutor-backend` starts the server (see coboltutor_backend/__init__.py).
+coboltutor-backend = "coboltutor_backend:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+# Development-only tools; not installed in the production Docker image.
+dev = [
+    "httpx>=0.28.1",          # FastAPI's TestClient is built on httpx
+    "mypy>=2.4.0",            # static type checking
+    "pytest>=9.1.1",          # test runner
+    "pytest-asyncio>=1.4.1",  # lets tests be `async def`
+    "ruff>=0.17.3",           # linter + formatter
+]
+
+# --- Tool configuration -----------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Treat every `async def test_...` as an asyncio test without needing a decorator.
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F = pycodestyle + pyflakes basics, I = import sorting, B = bugbear (common
+# bug patterns), UP = pyupgrade (modern syntax), ASYNC = async pitfalls.
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[tool.mypy]
+strict = true
+packages = ["coboltutor_backend"]
+mypy_path = "src"

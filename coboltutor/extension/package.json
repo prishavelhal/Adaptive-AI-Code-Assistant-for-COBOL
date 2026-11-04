@@ -1,0 +1,131 @@
+{
+  "name": "coboltutor",
+  "displayName": "CobolTutor: IBM COBOL Tutor",
+  "description": "Explains IBM COBOL code and answers your COBOL questions using IBM Granite, running locally.",
+  "version": "0.1.0",
+  "publisher": "coboltutor",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Education",
+    "AI"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "coboltutor",
+          "title": "CobolTutor",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "coboltutor": [
+        {
+          "type": "webview",
+          "id": "coboltutor.chat",
+          "name": "COBOL Tutor"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "coboltutor.explainSelection",
+        "title": "Explain Selected Code",
+        "category": "CobolTutor"
+      },
+      {
+        "command": "coboltutor.explainFile",
+        "title": "Explain This File",
+        "category": "CobolTutor"
+      },
+      {
+        "command": "coboltutor.newChat",
+        "title": "New Chat",
+        "category": "CobolTutor",
+        "icon": "$(add)"
+      },
+      {
+        "command": "coboltutor.checkBackend",
+        "title": "Check Backend Connection",
+        "category": "CobolTutor"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "coboltutor.explainSelection",
+          "when": "editorHasSelection",
+          "group": "coboltutor@1"
+        },
+        {
+          "command": "coboltutor.explainFile",
+          "group": "coboltutor@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "coboltutor.newChat",
+          "when": "view == coboltutor.chat",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "coboltutor.explainSelection",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "CobolTutor",
+      "properties": {
+        "coboltutor.backendUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "URL of the CobolTutor backend started with `docker compose up -d`."
+        },
+        "coboltutor.includeActiveFileByDefault": {
+          "type": "boolean",
+          "default": true,
+          "description": "When you type a question in the chat, attach the code from the active editor (your selection, or the whole file if nothing is selected)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "pnpm run build:webview && pnpm run build:extension",
+    "build:extension": "node esbuild.mjs",
+    "build:webview": "vite build",
+    "watch": "node esbuild.mjs --watch & vite build --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json && vue-tsc --noEmit -p webview/tsconfig.json",
+    "test": "vitest run",
+    "package": "pnpm run build && vsce package --no-dependencies --allow-missing-repository --skip-license"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.17",
+    "markdown-it": "^15.0.3",
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
+    "@types/node": "^22.20.5",
+    "@types/vscode": "1.95.0",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5",
+    "vue-tsc": "^3.3.13"
+  },
+  "packageManager": "pnpm@12.15.0"
+}

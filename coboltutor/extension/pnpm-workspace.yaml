@@ -1,0 +1,6 @@
+# pnpm doesn't run dependencies' install scripts unless they're allowed here
+# (a supply-chain safety feature). esbuild's install script checks that its
+# native binary works; vsce-sign's fetches the signing tool used by `vsce package`.
+allowBuilds:
+  esbuild: true
+  "@vscode/vsce-sign": true
