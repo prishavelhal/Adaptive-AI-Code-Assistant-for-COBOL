@@ -1,0 +1,14 @@
+# Ollama Modelfile for native mode (see docker-compose.native-ollama.yml).
+#
+# The installer runs:  ollama create coboltutor-granite4.2:8b -f ollama/Modelfile
+#
+# This makes a copy of granite4.2:8b that shares its weights (no extra
+# download or disk space) but always uses a 16k-token context window. The
+# backend's prompt-size limits assume 16k (see backend config.py); Ollama's
+# default is smaller, and when the context fills up Ollama silently drops half
+# of it, system prompt and code included.
+#
+# In Docker mode the same limit comes from OLLAMA_CONTEXT_LENGTH in
+# docker-compose.yml.
+FROM granite4.2:8b
+PARAMETER num_ctx 16384

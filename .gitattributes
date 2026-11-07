@@ -1,0 +1,5 @@
+# Keep line endings right for each platform, whatever git's autocrlf says:
+# bash refuses CRLF scripts, and cmd.exe misreads LF-only batch files.
+*.sh  text eol=lf
+*.ps1 text eol=lf
+*.cmd text eol=crlf

@@ -1,0 +1,37 @@
+# =============================================================================
+# Override: use an Ollama installed directly on this computer ("native")
+# instead of the Ollama container.
+#
+# Why: Docker can't use the GPU on macOS, so in a container Granite runs on the
+# CPU inside Docker's VM. Native Ollama uses Apple's Metal GPU and is much
+# faster. The installer picks this mode on macOS (and on Windows with an AMD
+# GPU); it turns it on by writing COMPOSE_FILE into .env.
+#
+# What it changes:
+#   - The ollama and ollama-pull containers move into the "docker-ollama"
+#     profile, so `docker compose up -d` no longer starts them.
+#   - The backend talks to Ollama on the host through host.docker.internal.
+#   - The backend uses coboltutor-granite4.2:8b, a copy of granite4.2:8b with
+#     a 16k context window (see ollama/Modelfile). In Docker mode that's set
+#     with OLLAMA_CONTEXT_LENGTH instead, which a native Ollama doesn't see.
+#
+# Needs Docker Compose 2.24 or newer (for `!reset`).
+# =============================================================================
+
+services:
+  ollama:
+    profiles: ["docker-ollama"]
+
+  ollama-pull:
+    profiles: ["docker-ollama"]
+
+  backend:
+    environment:
+      COBOLTUTOR_LLM_BASE_URL: http://host.docker.internal:11434/v1
+      COBOLTUTOR_LLM_MODEL: coboltutor-granite4.2:8b
+    extra_hosts:
+      # Docker Desktop defines host.docker.internal already; this also makes it
+      # work on other engines (Colima, plain Docker Engine).
+      - "host.docker.internal:host-gateway"
+    # Drop the wait for ollama-pull: it doesn't run in this mode.
+    depends_on: !reset {}

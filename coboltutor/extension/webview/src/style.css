@@ -1,0 +1,212 @@
+/*
+  Chat UI styles. Every colour and font comes from VSCode's theme variables
+  (--vscode-*), so the panel matches whatever theme the user has, light, dark,
+  or high-contrast, without any theme-specific CSS.
+  Full list: https://code.visualstudio.com/api/references/theme-color
+*/
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+/* Column layout: scrolling messages on top, composer pinned at the bottom. */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+/* --- Welcome screen ---------------------------------------------------------- */
+.welcome {
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.5;
+}
+.welcome h2 {
+  color: var(--vscode-foreground);
+  font-size: 1.2em;
+  margin-bottom: 4px;
+}
+.welcome ul {
+  padding-left: 18px;
+}
+kbd {
+  font-family: var(--vscode-editor-font-family);
+  background: var(--vscode-keybindingLabel-background);
+  border: 1px solid var(--vscode-keybindingLabel-border);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+/* --- Messages ---------------------------------------------------------------- */
+.message {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+.message .role {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.message.assistant .role {
+  color: var(--vscode-textLink-foreground);
+}
+.user-text {
+  white-space: pre-wrap; /* keep the user's own line breaks */
+  overflow-wrap: anywhere;
+}
+.thinking,
+.note {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+.error {
+  margin-top: 6px;
+  padding: 6px 8px;
+  color: var(--vscode-errorForeground);
+  background: var(--vscode-inputValidation-errorBackground);
+  border: 1px solid var(--vscode-inputValidation-errorBorder);
+  border-radius: 3px;
+}
+.context-chip {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 1px 6px;
+  font-size: 0.9em;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  border-radius: 10px;
+}
+
+/* --- Rendered Markdown --------------------------------------------------------- */
+.markdown {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown code {
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+  background: var(--vscode-textCodeBlock-background);
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+.markdown pre {
+  background: var(--vscode-textCodeBlock-background);
+  padding: 8px;
+  border-radius: 4px;
+  /* COBOL depends on columns, so scroll sideways instead of wrapping lines. */
+  overflow-x: auto;
+}
+.markdown pre code {
+  padding: 0;
+  background: none;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.markdown a {
+  color: var(--vscode-textLink-foreground);
+}
+.markdown table {
+  border-collapse: collapse;
+}
+.markdown th,
+.markdown td {
+  border: 1px solid var(--vscode-panel-border);
+  padding: 2px 6px;
+}
+
+/* --- Composer (input area) -------------------------------------------------------- */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+textarea {
+  resize: vertical;
+  min-height: 3em;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  padding: 6px;
+}
+textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.spacer {
+  flex: 1;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  padding: 4px 12px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.secondary {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+button.secondary:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* The "📎 file.cbl" toggle looks like a link-style chip, not a full button. */
+.context-toggle {
+  align-self: flex-start;
+  padding: 1px 6px;
+  font-size: 0.9em;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  border-radius: 10px;
+}
+.context-toggle.off {
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border: 1px dashed var(--vscode-panel-border);
+}
+.context-toggle:hover:not(:disabled) {
+  background: var(--vscode-badge-background);
+  opacity: 0.85;
+}

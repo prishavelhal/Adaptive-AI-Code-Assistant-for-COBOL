@@ -1,0 +1,18 @@
+// TypeScript settings for the extension host code (src/), shared types (shared/),
+// and unit tests (test/). The webview has its own tsconfig in webview/.
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["node", "vscode"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src", "shared", "test"]
+}

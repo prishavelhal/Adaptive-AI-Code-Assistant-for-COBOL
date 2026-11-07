@@ -1,0 +1,10 @@
+# Files left out of the packaged .vsix. The bundles in dist/ contain all code
+# and dependencies, so sources, tests, configs, and node_modules aren't needed.
+**
+!dist/extension.js
+!dist/webview/assets/index.js
+!dist/webview/assets/index.css
+!media/**
+!package.json
+!README.md
+!LICENSE

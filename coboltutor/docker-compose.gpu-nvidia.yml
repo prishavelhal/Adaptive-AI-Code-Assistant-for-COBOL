@@ -1,0 +1,22 @@
+# =============================================================================
+# Override: run Ollama on an NVIDIA GPU.
+#
+# Layered on top of docker-compose.yml. The installer turns it on for you by
+# writing COMPOSE_FILE into .env; to turn it on by hand:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu-nvidia.yml up -d
+#
+# Needs the NVIDIA driver on the host, plus:
+#   - Linux: the NVIDIA Container Toolkit (the installer sets it up)
+#   - Windows: Docker Desktop with the WSL 2 backend (GPU support is built in)
+# =============================================================================
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

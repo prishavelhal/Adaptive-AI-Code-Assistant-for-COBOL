@@ -23,3 +23,6 @@ out/
 .vite/
 .vscode-test/
 npm-debug.log*
+# --- Installer ---
+# Logs written by install.sh / install.ps1 (one folder per run).
+.install-logs/

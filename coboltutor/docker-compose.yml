@@ -1,0 +1,97 @@
+# =============================================================================
+# CobolTutor: local stack.
+#
+#   docker compose up -d          # start everything (the first run downloads ~5 GB of model)
+#   docker compose logs -f        # watch progress
+#   docker compose down           # stop (downloaded models are kept in a volume)
+#
+# Services:
+#   ollama       - runs the Granite model and serves an OpenAI-compatible API
+#   ollama-pull  - one-time job that downloads the model(s) into Ollama, then exits
+#   backend      - our FastAPI service that the VSCode extension talks to
+#
+# Later milestones will add PostgreSQL (RAG) and a GnuCOBOL sandbox here.
+# =============================================================================
+
+name: coboltutor
+
+services:
+  ollama:
+    image: ollama/ollama:0.40.11
+    # Downloaded models live in a named volume, so they survive
+    # `docker compose down` and are only downloaded once.
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      # Keep the model in memory for 30 minutes after the last request, so
+      # follow-up questions don't wait for it to reload.
+      OLLAMA_KEEP_ALIVE: 30m
+      # Context window (prompt + answer) in tokens. Ollama's default is 4096,
+      # too small for a whole COBOL file plus a full answer: when it fills up,
+      # Ollama silently discards half the context, system prompt and code
+      # included. 16384 fits the backend's limits (see backend config.py).
+      # Granite 4.2 supports much more; raise this if you raise those limits
+      # (it costs memory).
+      OLLAMA_CONTEXT_LENGTH: "16384"
+    # No `ports:` entry: only other containers in this stack need Ollama. To
+    # run the backend outside Docker during development, uncomment this:
+    # ports:
+    #   - "127.0.0.1:11434:11434"
+    healthcheck:
+      # `ollama list` only succeeds once the Ollama server is accepting requests.
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    # --- GPU acceleration (optional) ------------------------------------------
+    # Ollama runs on CPU by default. GPU support lives in override files, so
+    # this file works on every machine:
+    #   docker-compose.gpu-nvidia.yml    - NVIDIA GPU (Linux, Windows)
+    #   docker-compose.gpu-amd.yml       - AMD GPU via ROCm (Linux)
+    #   docker-compose.native-ollama.yml - use Ollama installed on the host (macOS)
+    # The installer (install.sh / install.ps1 in the repo root) picks one for your
+    # hardware and records it as COMPOSE_FILE in .env, so a plain
+    # `docker compose up -d` keeps using it.
+
+  ollama-pull:
+    # Same image, used only for its `ollama` CLI. OLLAMA_HOST points the CLI at
+    # the server container. `ollama pull` returns right away if a model is
+    # already downloaded, so it's cheap on later starts.
+    image: ollama/ollama:0.40.11
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    # granite-embedding:278m isn't used yet. It's pulled now for the RAG
+    # milestone so that milestone doesn't need a second long download.
+    command:
+      - "ollama pull granite4.2:8b && ollama pull granite-embedding:278m"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build: ./backend
+    environment:
+      # "ollama" resolves to the ollama container on Compose's private network.
+      COBOLTUTOR_LLM_BASE_URL: http://ollama:11434/v1
+      COBOLTUTOR_LLM_MODEL: granite4.2:8b
+    ports:
+      # Bind only to 127.0.0.1 so the backend is reachable from this machine
+      # (where VSCode runs) but not from the rest of the network.
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      # Wait until the model download finishes, so the first question
+      # doesn't fail with "model not found".
+      ollama-pull:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
+    # A fixed name, so the volume doesn't depend on the project name above.
+    # Without it Docker would call it "<project>_ollama-data", and renaming
+    # the project would quietly start a new, empty volume and re-download
+    # every model (~5 GB).
+    name: ollama-models
