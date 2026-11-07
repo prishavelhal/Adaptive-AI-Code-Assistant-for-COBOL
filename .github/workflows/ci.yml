@@ -1,0 +1,103 @@
+# runs on every PR to main and every push to main.
+#
+# Two independent jobs, one per half of the app, so a failure in one doesn't
+# hide the result of the other:
+#   backend   - coboltutor/backend   (Python, managed by uv)
+#   extension - coboltutor/extension (TypeScript + Vue, managed by pnpm)
+#
+# Each step mirrors a command you can run locally (see coboltutor/README.md),
+# so if CI fails you can reproduce it on your machine with the same command.
+#
+# No step calls a real LLM: the backend tests use a fake client (AGENTS.md:
+# "No real API calls in CI").
+
+name: CI
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+# If you push again to the same PR, cancel the run that's still going for the
+# old commit instead of running both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# The jobs only need to read the code.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (lint, format, types, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coboltutor/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs uv (same version the Dockerfile uses) and caches downloaded
+      # packages between runs, keyed on the lockfile.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.5"
+          enable-cache: true
+          cache-dependency-glob: coboltutor/backend/uv.lock
+
+      # --locked fails if uv.lock is out of date with pyproject.toml, so a PR
+      # can't silently change dependency versions. uv also installs the Python
+      # version pinned in .python-version (3.12).
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Check formatting (ruff format)
+        run: uv run ruff format --check .
+
+      - name: Type-check (mypy, strict)
+        run: uv run mypy
+
+      - name: Unit and API tests (pytest)
+        run: uv run pytest -v
+
+  extension:
+    name: Extension (types, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coboltutor/extension
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs the pnpm version named in package.json's "packageManager" field.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: coboltutor/extension/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: coboltutor/extension/pnpm-lock.yaml
+
+      # --frozen-lockfile fails if pnpm-lock.yaml doesn't match package.json.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check (tsc + vue-tsc)
+        run: pnpm typecheck
+
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      # Catches bundling errors that type-checking alone wouldn't.
+      - name: Build (vite + esbuild)
+        run: pnpm build
