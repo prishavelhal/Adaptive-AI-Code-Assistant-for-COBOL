@@ -45,15 +45,14 @@ services:
       retries: 30
     restart: unless-stopped
     # --- GPU acceleration (optional) ------------------------------------------
-    # Ollama runs on CPU by default. With an NVIDIA GPU and the NVIDIA Container
-    # Toolkit installed, uncomment this block for much faster answers:
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # Ollama runs on CPU by default. GPU support lives in override files, so
+    # this file works on every machine:
+    #   docker-compose.gpu-nvidia.yml    - NVIDIA GPU (Linux, Windows)
+    #   docker-compose.gpu-amd.yml       - AMD GPU via ROCm (Linux)
+    #   docker-compose.native-ollama.yml - use Ollama installed on the host (macOS)
+    # The installer (install.sh / install.ps1 in the repo root) picks one for your
+    # hardware and records it as COMPOSE_FILE in .env, so a plain
+    # `docker compose up -d` keeps using it.
 
   ollama-pull:
     # Same image, used only for its `ollama` CLI. OLLAMA_HOST points the CLI at

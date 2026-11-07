@@ -1,0 +1,19 @@
+# =============================================================================
+# Override: run Ollama on an AMD GPU (Linux only, via ROCm).
+#
+# Layered on top of docker-compose.yml. The installer turns it on for you by
+# writing COMPOSE_FILE into .env; to turn it on by hand:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu-amd.yml up -d
+#
+# Needs a ROCm-supported Radeon card and the amdgpu kernel driver (it provides
+# /dev/kfd). Docker can't pass AMD GPUs through on macOS or Windows.
+# =============================================================================
+
+services:
+  ollama:
+    # Ollama's ROCm build. Keep the version in step with docker-compose.yml.
+    image: ollama/ollama:0.40.11-rocm
+    devices:
+      - /dev/kfd
+      - /dev/dri

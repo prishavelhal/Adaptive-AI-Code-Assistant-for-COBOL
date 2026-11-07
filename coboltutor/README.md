@@ -29,9 +29,17 @@ through Ollama.
 
 ## Quick start
 
+**Easiest:** run the installer from the repository root: `./install.sh` (macOS and Linux)
+or `install.cmd` (Windows). It installs what's missing, picks GPU or CPU, downloads the
+models, starts the stack, and installs the extension. See the root `README.md` for details.
+
+The manual steps below do the same by hand.
+
 **Prerequisites:** Docker with the Compose plugin, Node.js 22+ with pnpm, and VSCode.
-The model runs on CPU by default. With an NVIDIA GPU, uncomment the `deploy:`
-block in `docker-compose.yml` for much faster answers.
+The model runs on CPU by default. For a GPU, add an override file:
+`docker-compose.gpu-nvidia.yml` (NVIDIA) or `docker-compose.gpu-amd.yml` (AMD, Linux), e.g.
+`docker compose -f docker-compose.yml -f docker-compose.gpu-nvidia.yml up -d`. On a Mac,
+`docker-compose.native-ollama.yml` uses an Ollama installed on macOS, which can use the Apple GPU.
 
 1. **Start the backend stack.** The first run downloads roughly 5 GB of models.
 
