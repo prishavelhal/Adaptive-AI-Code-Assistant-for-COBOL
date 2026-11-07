@@ -199,9 +199,11 @@ show_log_tail() {
 }
 
 # Wait for background process $1 while showing a spinner labelled $2.
-# $3 is its log, shown if it fails. Returns the process's exit code.
+# $3 is its log, shown if it fails. $4 (optional) is the $SECONDS value when
+# the job started, so a job that ran in the background reports its real time.
+# Returns the process's exit code.
 spin_wait() {
-  local pid=$1 label=$2 log=$3 start=$SECONDS i=0 rc
+  local pid=$1 label=$2 log=$3 start=${4:-$SECONDS} i=0 rc
   if [ "$IS_TTY" = 1 ]; then
     printf '\033[?25l' # hide cursor
     while kill -0 "$pid" 2>/dev/null; do
@@ -569,7 +571,19 @@ install_docker_linux() {
 ensure_docker() {
   step "Docker"
 
-  # 2a. Install it if it's missing.
+  # 2a. Install it if it's missing. On macOS, Docker Desktop can be installed
+  # without its `docker` command on PATH (its CLI-tools setting, or a failed
+  # symlink step); use the copy inside the app instead of reinstalling it.
+  if ! have docker && [ "$OS" = macos ]; then
+    local app_bin
+    for app_bin in /Applications/Docker.app/Contents/Resources/bin "$HOME/Applications/Docker.app/Contents/Resources/bin"; do
+      if [ -x "$app_bin/docker" ]; then
+        PATH="$app_bin:$PATH"
+        note "Using the docker command inside Docker Desktop ($app_bin)."
+        break
+      fi
+    done
+  fi
   if ! have docker; then
     if [ "$OS" = macos ]; then
       info "Docker isn't installed. Installing Docker Desktop with Homebrew."
@@ -684,6 +698,9 @@ native_ollama_up() { curl -fsS "$NATIVE_OLLAMA_URL/api/version" >/dev/null 2>&1;
 
 find_ollama_bin() {
   if have ollama; then OLLAMA_BIN="$(command -v ollama)"
+  # Homebrew's copy, when this shell doesn't have Homebrew on PATH.
+  elif [ -x /opt/homebrew/bin/ollama ]; then OLLAMA_BIN=/opt/homebrew/bin/ollama
+  elif [ -x /usr/local/bin/ollama ]; then OLLAMA_BIN=/usr/local/bin/ollama
   elif [ -x /Applications/Ollama.app/Contents/Resources/ollama ]; then OLLAMA_BIN=/Applications/Ollama.app/Contents/Resources/ollama
   elif [ -x "$HOME/Applications/Ollama.app/Contents/Resources/ollama" ]; then OLLAMA_BIN="$HOME/Applications/Ollama.app/Contents/Resources/ollama"
   else OLLAMA_BIN=""; fi
@@ -803,6 +820,16 @@ find_editors() {
   fi
 }
 
+# Is a VS Code-family editor running right now? (Best effort; only used for a hint.)
+editor_running() {
+  have pgrep || return 1
+  if [ "$OS" = macos ]; then
+    pgrep -f '(Visual Studio Code|Visual Studio Code - Insiders|Cursor|VSCodium|Windsurf)\.app/Contents/MacOS/' >/dev/null 2>&1
+  else
+    pgrep -x 'code|code-insiders|cursor|codium|windsurf' >/dev/null 2>&1
+  fi
+}
+
 install_vscode() {
   if [ "$OS" = macos ]; then
     ensure_brew
@@ -890,13 +917,14 @@ build_extension() {
       chown "$HOST_UID:$HOST_GID" /src/*.vsix'
 }
 
-BACKEND_PID=""; EXTENSION_PID=""
+BACKEND_PID=""; EXTENSION_PID=""; BG_START=0
 start_background_builds() {
   if [ "$DRY_RUN" = 1 ]; then
     info "[dry-run] background: docker compose build backend"
     [ "$DO_EXTENSION" = 1 ] && info "[dry-run] background: build coboltutor-$EXT_VERSION.vsix"
     return
   fi
+  BG_START=$SECONDS
   dc build backend >"$LOG_DIR/backend-build.log" 2>&1 </dev/null &
   BACKEND_PID=$!; BG_PIDS="$BG_PIDS $BACKEND_PID"
   info "Building the backend image in the background"
@@ -1002,10 +1030,38 @@ step_models() {
 # =============================================================================
 backend_ready() { curl -fsS "$BACKEND_URL/health" 2>/dev/null | grep -q '"model_ready": *true'; }
 
+# Native mode: load Granite into memory now, so the first question doesn't
+# wait for it, and check where Ollama put it. "100% GPU" is what we want; a
+# CPU share means it didn't fit in GPU memory (or this Mac has no usable GPU).
+warm_up_native_model() {
+  [ "$DRY_RUN" = 1 ] && { info "[dry-run] load $NATIVE_MODEL and check it's on the GPU"; return 0; }
+  # A generate request with no prompt only loads the model. keep_alive keeps
+  # it loaded for 30 minutes, like OLLAMA_KEEP_ALIVE in docker-compose.yml.
+  run "Loading Granite into memory" curl -fsS "$NATIVE_OLLAMA_URL/api/generate" \
+    -d "{\"model\": \"$NATIVE_MODEL\", \"keep_alive\": \"30m\"}" || {
+    warn "Couldn't load the model ahead of time; the first question will take a little longer."
+    return 0
+  }
+  # `ollama ps` shows e.g. "100% GPU", "100% CPU", or "35%/65% CPU/GPU".
+  local where
+  where="$("$OLLAMA_BIN" ps 2>/dev/null | grep -F "$NATIVE_MODEL" |
+    grep -oE '[0-9]+%/[0-9]+% CPU/GPU|[0-9]+% (GPU|CPU)' | head -n1)"
+  case "$where" in
+    "100% GPU") ok "Granite is running on the GPU ${C_DIM}(ollama ps: $where)${C_RESET}" ;;
+    "") note "Couldn't tell whether Granite is on the GPU (check: ollama ps)." ;;
+    *)
+      if [ "$ACCEL" = metal ]; then
+        warn "Granite is only partly on the GPU (ollama ps: $where). Closing other apps frees GPU memory."
+      else
+        ok "Granite is loaded ${C_DIM}(ollama ps: $where)${C_RESET}"
+      fi ;;
+  esac
+}
+
 step_start() {
   step "Starting CobolTutor"
   if [ -n "$BACKEND_PID" ]; then
-    spin_wait "$BACKEND_PID" "Building the backend image" "$LOG_DIR/backend-build.log" || die "The backend image didn't build."
+    spin_wait "$BACKEND_PID" "Building the backend image" "$LOG_DIR/backend-build.log" "$BG_START" || die "The backend image didn't build."
   fi
 
   if [ "$OLLAMA_MODE" = native ] && [ "$DRY_RUN" = 0 ]; then
@@ -1030,6 +1086,7 @@ $(dk ps -aq --filter label=com.docker.compose.project=coboltutor \
   if [ "$DO_MODELS" = 1 ]; then
     wait_until "Waiting for the tutor to be ready" 180 backend_ready ||
       die "The backend is up but the model isn't ready. Check: curl $BACKEND_URL/health"
+    [ "$OLLAMA_MODE" = native ] && warm_up_native_model
   else
     wait_until "Waiting for the backend" 60 curl -fsS "$BACKEND_URL/health" || warn "The backend isn't answering yet."
   fi
@@ -1042,7 +1099,7 @@ step_extension() {
   step "VS Code extension"
   if [ "$DO_EXTENSION" = 0 ]; then info "Skipped (--no-extension)"; return; fi
   if [ -n "$EXTENSION_PID" ]; then
-    spin_wait "$EXTENSION_PID" "Building the extension" "$LOG_DIR/extension-build.log" ||
+    spin_wait "$EXTENSION_PID" "Building the extension" "$LOG_DIR/extension-build.log" "$BG_START" ||
       die "The extension didn't build."
   fi
   VSIX="$EXT_DIR/coboltutor-$EXT_VERSION.vsix"
@@ -1055,6 +1112,11 @@ step_extension() {
     run "Installing into ${EDITOR_NAMES[$i]}" "${EDITOR_CLIS[$i]}" --install-extension "$VSIX" --force || failed=1
   done
   [ "$failed" = 1 ] && note "To install by hand: Extensions view $S_ARROW ... menu $S_ARROW Install from VSIX $S_ARROW $VSIX"
+  # A running editor keeps the old version loaded until its window reloads.
+  if [ ${#EDITOR_NAMES[@]} -gt 0 ] && editor_running; then
+    note "An editor is open: run 'Developer: Reload Window' from its Command Palette to load the new version."
+  fi
+  return 0
 }
 
 # =============================================================================
