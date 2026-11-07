@@ -39,4 +39,7 @@ The extension is intended to run in VS Code, with a separate backend for retriev
 
 **Deferred:** model/provider, backend framework and hosting, knowledge-base corpus and retrieval technology, exact slider meanings and ranges, authentication, code retention/logging, extension release channel, and evaluation measures.
 
+## Temporary placeholder for Figma UI
+https://www.figma.com/design/OznfpeNIOKC6WR8yrVS21j/Untitled?node-id=0-1&p=f&t=W9HYgrP3jXBCDacu-0
+
 Before implementation, the team needs to decide where the skeleton will run, which public sources it will cite, how profile values affect explanations, how user code is handled, and what tests demonstrate correct retrieval and request/stream behavior. Record hard-to-reverse decisions in the project’s RFC/ADR location and update this document to match the implementation.
