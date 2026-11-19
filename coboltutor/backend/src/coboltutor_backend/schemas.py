@@ -54,19 +54,21 @@ class ChatMessage(BaseModel):
 # One slider answer: 1 = strongly disagree ... 3 = neutral ... 5 = strongly agree.
 SliderValue = Annotated[int, Field(ge=1, le=5)]
 
+
 class StyleProfile(BaseModel):
     """The learner's problem-solving style: five 1-5 sliders (FR-4).
 
     1 leans to the first style named in each comment, 5 to the second,
     and 3 means neutral (no adaptation for that dimension).
     """
+
     # Everything defaults to 3, neutral, so we can skip survey for now
 
-    learning_style: SliderValue = 3            # 1 = process-oriented ... 5 = tinkering-oriented
-    self_efficacy: SliderValue = 3             # (1 = lower ... 5 = higher)
-    risk_attitude: SliderValue = 3             # (1 = risk-averse ... 5 = risk-tolerant)
-    motivations: SliderValue = 3               # (1 = task-oriented ... 5 = tech-oriented)
-    information_processing: SliderValue = 3    # (1 = comprehensive ... 5 = selective)
+    learning_style: SliderValue = 3  # 1 = process-oriented ... 5 = tinkering-oriented
+    self_efficacy: SliderValue = 3  # (1 = lower ... 5 = higher)
+    risk_attitude: SliderValue = 3  # (1 = risk-averse ... 5 = risk-tolerant)
+    motivations: SliderValue = 3  # (1 = task-oriented ... 5 = tech-oriented)
+    information_processing: SliderValue = 3  # (1 = comprehensive ... 5 = selective)
 
 
 class ChatRequest(BaseModel):
