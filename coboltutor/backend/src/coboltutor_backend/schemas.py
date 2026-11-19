@@ -8,7 +8,7 @@ doesn't match (a missing field, the wrong type, an over-long string) is rejected
 automatically with an HTTP 422 response before our code runs.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -51,10 +51,31 @@ class ChatMessage(BaseModel):
     code_context: CodeContext | None = None
 
 
+# One slider answer: 1 = strongly disagree ... 3 = neutral ... 5 = strongly agree.
+SliderValue = Annotated[int, Field(ge=1, le=5)]
+
+class StyleProfile(BaseModel):
+    """The learner's problem-solving style: five 1-5 sliders (FR-4).
+
+    1 leans to the first style named in each comment, 5 to the second,
+    and 3 means neutral (no adaptation for that dimension).
+    """
+    # Everything defaults to 3, neutral, so we can skip survey for now
+
+    learning_style: SliderValue = 3            # 1 = process-oriented ... 5 = tinkering-oriented
+    self_efficacy: SliderValue = 3             # (1 = lower ... 5 = higher)
+    risk_attitude: SliderValue = 3             # (1 = risk-averse ... 5 = risk-tolerant)
+    motivations: SliderValue = 3               # (1 = task-oriented ... 5 = tech-oriented)
+    information_processing: SliderValue = 3    # (1 = comprehensive ... 5 = selective)
+
+
 class ChatRequest(BaseModel):
     """Body of ``POST /api/chat``: the conversation so far, oldest first."""
 
     messages: list[ChatMessage] = Field(min_length=1, max_length=MAX_MESSAGES)
+
+    # no profile means the tutor answers in its default (unadapted) style
+    profile: StyleProfile | None = None
 
     @field_validator("messages")
     @classmethod
