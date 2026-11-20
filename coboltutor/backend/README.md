@@ -35,3 +35,13 @@ uv run pytest                 # tests (no model needed; uses a fake LLM)
 All settings are environment variables prefixed with `COBOLTUTOR_`; see
 `src/coboltutor_backend/config.py` for the full list and their defaults. The most
 useful ones are `COBOLTUTOR_LLM_BASE_URL` and `COBOLTUTOR_LLM_MODEL`.
+
+Ready-made sets of these settings live in `profiles/`:
+
+| Profile             | Model                     | Used by                                                     |
+| ------------------- | ------------------------- | ----------------------------------------------------------- |
+| `local-ollama.conf` | Granite 4.2 8B on Ollama  | local development (same values as the defaults)             |
+| `cluster-vllm.conf` | Granite 4.2 30B on vLLM   | `scripts/cluster/` on the HPC cluster; see `docs/cluster-support.md` |
+
+To use a profile by hand: `set -a; source profiles/<name>.conf; set +a`, then
+`uv run coboltutor-backend`. Profiles are committed, so they never hold secrets.

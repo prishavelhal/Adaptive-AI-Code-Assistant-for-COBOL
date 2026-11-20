@@ -9,6 +9,7 @@ also put them in ``backend/.env``.
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,7 +51,8 @@ class Settings(BaseSettings):
     #   "medium"/"high" - long reasoning: slower, and can use up llm_max_tokens
     #                     before any answer appears
     # Measured on a short question: default ~12s, "low" ~1.3s, "none" ~1.0s.
-    # Set to None to leave the parameter out entirely (for servers that reject it).
+    # To leave the parameter out entirely (for servers that reject it, e.g. some
+    # vLLM versions), set it to empty: COBOLTUTOR_LLM_REASONING_EFFORT=
     llm_reasoning_effort: Literal["none", "low", "medium", "high"] | None = "low"
     # How long to wait for the model before giving up (seconds). Generous because
     # the first request after startup may need to load the model into memory.
@@ -71,6 +73,12 @@ class Settings(BaseSettings):
     max_code_chars: int = 24_000
     # Max number of past chat messages sent to the model (oldest dropped first).
     max_history_messages: int = 20
+
+    @field_validator("llm_reasoning_effort", mode="before")
+    @classmethod
+    def _empty_reasoning_effort_means_omit(cls, value: object) -> object:
+        # Environment variables can't hold None, so an empty value stands in for it.
+        return None if value == "" else value
 
 
 @lru_cache
