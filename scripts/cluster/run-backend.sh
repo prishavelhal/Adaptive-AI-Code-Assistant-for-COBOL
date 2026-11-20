@@ -25,6 +25,11 @@ BACKEND_DIR=$REPO_DIR/coboltutor/backend
 CONFIG_DIR=$HOME/.config/coboltutor
 ENDPOINT_FILE=$CONFIG_DIR/vllm-endpoint
 
+# Shared settings: keeps uv's cache and the Python it downloads for the
+# backend in the HPC share instead of your small $HOME, and puts uv on PATH.
+# shellcheck source=SCRIPTDIR/env.sh
+source "$REPO_DIR/scripts/cluster/env.sh"
+
 # `set -a` exports everything the files set, so the backend process sees it.
 set -a
 # shellcheck source=SCRIPTDIR/../../coboltutor/backend/profiles/cluster-vllm.conf

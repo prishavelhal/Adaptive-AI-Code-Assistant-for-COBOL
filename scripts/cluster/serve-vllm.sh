@@ -23,8 +23,6 @@
 #   COBOLTUTOR_HPC_DIR  where setup.sh put the venv and model cache.
 set -euo pipefail
 
-# Must match the default in setup.sh.
-HPC_DIR=${COBOLTUTOR_HPC_DIR:-$HOME/hpc-share}
 VLLM_HOST=${VLLM_HOST:-127.0.0.1}
 CONFIG_DIR=$HOME/.config/coboltutor
 ENDPOINT_FILE=$CONFIG_DIR/vllm-endpoint
@@ -33,6 +31,11 @@ ENDPOINT_FILE=$CONFIG_DIR/vllm-endpoint
 # own spool directory.
 REPO_DIR=${COBOLTUTOR_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 PROFILE=$REPO_DIR/coboltutor/backend/profiles/cluster-vllm.conf
+
+# Shared settings: HPC_DIR, and every cache (including the Hugging Face model
+# weights, HF_HOME) pointed at the HPC share instead of your small $HOME.
+# shellcheck source=SCRIPTDIR/env.sh
+source "$REPO_DIR/scripts/cluster/env.sh"
 
 # --- Checks before loading anything big ---------------------------------------
 # Is there a GPU we're allowed to use? Inside a Slurm job, nvidia-smi only
@@ -74,9 +77,6 @@ set -a
 source "$CONFIG_DIR/vllm.env"
 set +a
 
-# Keep downloaded weights in the HPC share (big) rather than $HOME (small quota).
-# Later runs reuse them, so only the first run downloads.
-export HF_HOME=$HPC_DIR/hf-cache
 # shellcheck source=/dev/null
 source "$HPC_DIR/vllm-venv/bin/activate"
 

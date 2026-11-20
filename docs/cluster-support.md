@@ -29,7 +29,7 @@ Anyways, put the .tar.gz folder where you want to access vscode from (I put it i
    scripts/cluster/setup.sh
    ```
 
-   This installs vLLM into a virtual environment in `~/hpc-share`. The script also creates a private API key in `~/.config/coboltutor/vllm.env` and installs `uv` if you don't have it. **Never commit or share `vllm.env`.**
+   This installs vLLM into a Python 3.12 virtual environment in `~/hpc-share`. The cluster's own `python3` is 3.9, which is too old for vLLM, so the script uses `uv` to download 3.12. Your home directory has a small quota, so every download cache (pip, uv, vLLM, model weights) goes to `~/hpc-share` too. `scripts/cluster/env.sh` sets those locations. The script also creates a private API key in `~/.config/coboltutor/vllm.env` and installs `uv` if you don't have it. **Never commit or share `vllm.env`.**
 
    **b. Set the model.** In `coboltutor/backend/profiles/cluster-vllm.conf`, set `VLLM_MODEL_ID` to the Granite 4.2 30B repo id from https://huggingface.co/ibm-granite.
 
@@ -52,6 +52,7 @@ Anyways, put the .tar.gz folder where you want to access vscode from (I put it i
    **e. Check it.** Run `curl http://127.0.0.1:8000/health`. It should show `"model": "granite4.2:30b"` and `"model_ready": true`. In VS Code, run **CobolTutor: Check Backend Connection** from the command palette.
 
 6. **Troubleshooting**
+   - **"No space left on device" with a path in `/nfs/stak/users/...`:** your home directory is full. Check what's using it with `du -sh ~/.cache/* ~/.local/share/*`. Delete caches the scripts no longer use, such as `~/.cache/pip`, then run the script again.
    - **`serve-vllm.sh` says there's no GPU:** your desktop session was started without one. Start a new session that requests a GPU.
    - **vLLM fails with an out-of-memory error:** the GPU is too small for 30B. Add `--quantization fp8` to `VLLM_EXTRA_ARGS` in the profile. If your session has 2 GPUs, add `--tensor-parallel-size 2` instead. If neither works, run the model as a separate batch job on a bigger GPU (below).
    - **Answers include the model's "thinking" text:** add the `--reasoning-parser` named on the model card to `VLLM_EXTRA_ARGS`.
