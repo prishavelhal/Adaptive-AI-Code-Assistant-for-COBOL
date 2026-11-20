@@ -9,6 +9,7 @@ also put them in ``backend/.env``.
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -71,6 +72,65 @@ class Settings(BaseSettings):
     max_code_chars: int = 24_000
     # Max number of past chat messages sent to the model (oldest dropped first).
     max_history_messages: int = 20
+
+    # --- RAG: retrieval-augmented generation ----------------------------------
+    # RAG = before answering, look up relevant passages in our knowledge base
+    # (coboltutor/knowledge-base/) and give them to the model, so answers are
+    # grounded in real documentation and can cite their sources (FR-3).
+    # See coboltutor_backend/rag/__init__.py for how the pieces fit together.
+    #
+    # Off by default: the RAG package is a skeleton and nothing calls it yet.
+    # Turning this on before retrieval is implemented will not change behaviour.
+    rag_enabled: bool = False
+
+    # Connection string for PostgreSQL with the pgvector extension, e.g.
+    #   postgresql://USER:PASSWORD@HOST:5432/DBNAME
+    # No default on purpose: credentials must come from the environment
+    # (COBOLTUTOR_DATABASE_URL in .env), never from code (see AGENTS.md).
+    # SecretStr keeps the password out of logs and error messages; call
+    # .get_secret_value() only at the point of connecting.
+    database_url: SecretStr | None = None
+
+    # The embedding model turns text into a vector (a list of numbers) so that
+    # passages with similar meaning end up close together. It is a separate
+    # model from the chat model above, served separately, because:
+    #   - on the HPC cluster, vLLM serves only the 30B chat model, and
+    #   - the SAME embedding model must be used to build the index (ingestion)
+    #     and to search it (every question), on every machine. Vectors from
+    #     different models, or even differently quantized copies of one model,
+    #     are not comparable. rag/retriever.py checks this before searching.
+    #
+    # Default: IBM granite-embedding-english-r2 (149M parameters, 768-dim
+    # vectors, reads up to 8192 tokens, Apache 2.0). Chosen provisionally over
+    # granite-embedding:278m, which reads only 512 tokens and so cannot embed a
+    # long COBOL paragraph whole. Not final: compare candidates on real COBOL
+    # questions before committing to one.
+    # TODO: decide how r2 is served locally. Ollama's official library only has
+    # the older granite-embedding sizes, so this model name and URL are
+    # placeholders until that is settled.
+    embedding_base_url: str = "http://localhost:11434/v1"
+    embedding_model: str = "granite-embedding-english-r2"
+    # Only needed if the embedding server requires one (e.g. vLLM started with
+    # --api-key). Like database_url, it comes from the environment only.
+    embedding_api_key: SecretStr | None = None
+    # Length of each vector. MUST match the model (768 for granite-embedding-
+    # english-r2) and the vector column in rag/schema.sql. pgvector can only
+    # index up to 2000 dimensions for the `vector` type.
+    embedding_dimensions: int = 768
+    # Most tokens the embedding model reads; text beyond this is silently cut
+    # off by the model. The chunker uses it to decide when a chunk is too long.
+    embedding_max_input_tokens: int = 8192
+    # How many passages to send to the embedding server per request during
+    # ingestion. Batching is much faster than one request per chunk.
+    embedding_batch_size: int = 32
+
+    # How many passages to retrieve per question.
+    rag_top_k: int = 5
+    # Max characters of retrieved passages added to one prompt (~2k tokens).
+    # Retrieved text shares the context window with the user's code, the chat
+    # history, and the answer (see "Prompt size limits" above), so it gets its
+    # own budget. Raise it together with the context window, e.g. on the cluster.
+    rag_max_context_chars: int = 8_000
 
 
 @lru_cache

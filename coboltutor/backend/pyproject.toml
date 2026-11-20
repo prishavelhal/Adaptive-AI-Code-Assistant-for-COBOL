@@ -23,11 +23,22 @@ dependencies = [
     "openai>=3.39.0",
     # Reads configuration from environment variables / a .env file.
     "pydantic-settings>=2.16.1",
+    # --- RAG (retrieval-augmented generation) -------------------------------
+    # PostgreSQL driver (psycopg 3). The [binary] extra bundles a prebuilt
+    # libpq, so neither developers nor the Docker image need Postgres client
+    # libraries installed. Used by rag/store.py to talk to the vector database.
+    "psycopg[binary]>=3.3.9",
+    # pgvector's Python helpers: register the `vector` column type with
+    # psycopg so embeddings go in and come out as plain Python lists/arrays
+    # instead of strings like '[0.1,0.2,...]'.
+    "pgvector>=0.5.1",
 ]
 
 [project.scripts]
 # `uv run coboltutor-backend` starts the server (see coboltutor_backend/__init__.py).
 coboltutor-backend = "coboltutor_backend:main"
+# `uv run coboltutor-ingest` builds the RAG index (see coboltutor_backend/rag/ingest.py).
+coboltutor-ingest = "coboltutor_backend.rag.ingest:main"
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
