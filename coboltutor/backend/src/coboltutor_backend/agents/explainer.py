@@ -25,7 +25,7 @@ _ANALYSIS_PLACEHOLDER = "{analysis}"
 
 
 @cache
-def _load_prompt(name: str) -> str:
+def load_prompt(name: str) -> str:
     """Read a prompt template that ships inside this package (agents/prompts/).
 
     Prompts live in their own files, as AGENTS.md asks, so wording changes don't
@@ -43,7 +43,7 @@ def build_explainer_messages(
     if analysis is None or analysis.is_empty:
         return messages  # nothing useful found: behave exactly like /api/chat
 
-    note = _load_prompt("explainer_analysis.md").replace(
+    note = load_prompt("explainer_analysis.md").replace(
         _ANALYSIS_PLACEHOLDER, render_analysis(analysis)
     )
     # The request schema guarantees the last message is the user's question.
