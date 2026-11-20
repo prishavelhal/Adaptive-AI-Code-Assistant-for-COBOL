@@ -21,6 +21,7 @@ from ..config import Settings, get_settings
 from ..llm import LLMClient
 from ..schemas import ChatRequest
 from .orchestrator import ErrorDescriber, run_pipeline
+from .settings import AgentSettings, get_agent_settings
 
 
 def create_agent_router(
@@ -34,10 +35,11 @@ def create_agent_router(
         request: ChatRequest,
         settings: Annotated[Settings, Depends(get_settings)],
         llm: Annotated[LLMClient, Depends(get_llm)],
+        agent_settings: Annotated[AgentSettings, Depends(get_agent_settings)],
     ) -> StreamingResponse:
         """Stream the answer from the multi-agent pipeline as Server-Sent Events."""
         return StreamingResponse(
-            run_pipeline(request, settings, llm, describe_error),
+            run_pipeline(request, settings, llm, describe_error, agent_settings),
             media_type="text/event-stream",
             # Same anti-buffering headers as /api/chat.
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
