@@ -45,7 +45,29 @@ export interface ChatRequest {
 export type BackendEvent =
   | { event: "token"; data: { text: string } }
   | { event: "done"; data: Record<string, never> }
-  | { event: "error"; data: { message: string } };
+  | { event: "error"; data: { message: string } }
+  // The two events below are sent only by /api/agent-chat (the agent pipeline,
+  // backend/src/coboltutor_backend/agents/). /api/chat never sends them.
+  /** The pipeline started a step: "analyze", "explain", or "verify". */
+  | { event: "stage"; data: { name: string } }
+  /** The Critic's findings about the finished answer. Always arrives before `done`. */
+  | { event: "verification"; data: Verification };
+
+/** One possible problem the Critic found in an answer. */
+export interface VerificationIssue {
+  /** "check" = built-in check (no model); "review" = the optional model review. */
+  source: "check" | "review";
+  message: string;
+  /** The line the issue is about, if any. */
+  line: number | null;
+}
+
+/** Body of the `verification` event (see backend agents/critic.py). */
+export interface Verification {
+  issues: VerificationIssue[];
+  /** true if the model review ran as well as the built-in checks. */
+  reviewed_by_model: boolean;
+}
 
 /** Response of GET /health. */
 export interface HealthResponse {
@@ -67,6 +89,10 @@ export interface UiMessage {
   error?: string;
   /** true if the user pressed Stop before the answer finished. */
   stopped?: boolean;
+  /** Agent mode only: the pipeline step running now (cleared when the answer ends). */
+  stage?: string;
+  /** Agent mode only: the Critic's findings, shown under the answer. */
+  verification?: Verification;
 }
 
 /** Messages the extension host sends to the webview. */
@@ -80,6 +106,8 @@ export type HostToWebview =
     }
   /** Append text to the last (assistant) message. Avoids resending the whole state per token. */
   | { type: "token"; text: string }
+  /** Agent mode only: the last (assistant) message's pipeline step changed. */
+  | { type: "stage"; name: string }
   /** What will be attached if the user sends a question now (null = no usable editor). */
   | { type: "activeContext"; label: string | null; include: boolean };
 
