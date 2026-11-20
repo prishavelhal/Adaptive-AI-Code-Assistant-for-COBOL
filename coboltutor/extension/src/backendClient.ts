@@ -8,14 +8,23 @@
 // Tokens are handed to the caller through a callback; chatViewProvider.ts then
 // forwards them to the webview.
 // -----------------------------------------------------------------------------
-import type { BackendEvent, ChatRequest, HealthResponse } from "../shared/protocol";
+import type { BackendEvent, ChatRequest, HealthResponse, Verification } from "../shared/protocol";
 import { SseParser } from "./sse";
 
 /** An error whose message is safe and useful to show to the user as-is. */
 export class BackendError extends Error {}
 
+/** The plain chat endpoint (the default). */
+export const CHAT_PATH = "/api/chat";
+/** The agent pipeline endpoint: same request and stream, plus stage/verification events. */
+export const AGENT_CHAT_PATH = "/api/agent-chat";
+
 export interface StreamHandlers {
   onToken: (text: string) => void;
+  /** Agent endpoint only: a pipeline step started. Optional; ignored if absent. */
+  onStage?: (name: string) => void;
+  /** Agent endpoint only: the Critic's findings. Optional; ignored if absent. */
+  onVerification?: (verification: Verification) => void;
 }
 
 /** Remove trailing slashes so `${base}/api/chat` never contains "//". */
@@ -44,16 +53,20 @@ function describeFetchError(err: unknown, baseUrl: string): BackendError {
  *
  * Resolves when the answer is complete. Rejects with BackendError on failure,
  * or with an AbortError if `signal` is aborted (the user pressed Stop).
+ *
+ * `path` picks the endpoint: CHAT_PATH (default) or AGENT_CHAT_PATH. Both take
+ * the same request and send the same events, so nothing else changes.
  */
 export async function streamChat(
   baseUrl: string,
   request: ChatRequest,
   signal: AbortSignal,
   handlers: StreamHandlers,
+  path: string = CHAT_PATH,
 ): Promise<void> {
   let response: Response;
   try {
-    response = await fetch(joinUrl(baseUrl, "/api/chat"), {
+    response = await fetch(joinUrl(baseUrl, path), {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
       body: JSON.stringify(request),
@@ -90,6 +103,12 @@ export async function streamChat(
         return true;
       case "error":
         throw new BackendError(evt.data.message);
+      case "stage":
+        handlers.onStage?.(evt.data.name);
+        return false;
+      case "verification":
+        handlers.onVerification?.(evt.data);
+        return false;
       default:
         return false; // ignore unknown events, for forward compatibility
     }

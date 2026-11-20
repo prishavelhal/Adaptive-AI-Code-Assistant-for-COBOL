@@ -97,6 +97,11 @@
           "type": "boolean",
           "default": true,
           "description": "When you type a question in the chat, attach the code from the active editor (your selection, or the whole file if nothing is selected)."
+        },
+        "coboltutor.useAgents": {
+          "type": "boolean",
+          "default": false,
+          "description": "Experimental: answer with the agent pipeline (/api/agent-chat). It analyzes the attached code first, then checks the answer and shows possible problems under it."
         }
       }
     }

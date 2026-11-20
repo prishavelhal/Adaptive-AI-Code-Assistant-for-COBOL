@@ -21,9 +21,10 @@ import type {
   CodeContext,
   HostToWebview,
   UiMessage,
+  Verification,
   WebviewToHost,
 } from "../shared/protocol";
-import { BackendError, streamChat } from "./backendClient";
+import { AGENT_CHAT_PATH, BackendError, CHAT_PATH, streamChat } from "./backendClient";
 import { baseName, buildCodeContext, describeContext, type EditorSnapshot } from "./codeContext";
 import { getWebviewHtml } from "./webviewHtml";
 
@@ -34,6 +35,10 @@ interface Turn {
   codeContext?: CodeContext;
   error?: string;
   stopped?: boolean;
+  /** Agent mode: the pipeline step running now. Display-only, never sent to the backend. */
+  stage?: string;
+  /** Agent mode: the Critic's findings. Display-only, never sent to the backend. */
+  verification?: Verification;
 }
 
 /** URI schemes of real documents. Others (e.g. "output" for the Output panel) are skipped. */
@@ -170,19 +175,37 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     this.turns.push(answer);
     this.postState();
 
-    const baseUrl = vscode.workspace
-      .getConfiguration("coboltutor")
-      .get<string>("backendUrl", "http://127.0.0.1:8000");
+    const config = vscode.workspace.getConfiguration("coboltutor");
+    const baseUrl = config.get<string>("backendUrl", "http://127.0.0.1:8000");
+    // Opt-in: with `coboltutor.useAgents` on, questions go to the agent pipeline.
+    // It takes the same request, so the only difference here is the URL plus
+    // two extra callbacks for the agent-only events.
+    const path = config.get<boolean>("useAgents", false) ? AGENT_CHAT_PATH : CHAT_PATH;
+    const isCurrent = () => this.abortController === controller;
 
     try {
-      await streamChat(baseUrl, request, controller.signal, {
-        onToken: (t) => {
-          answer.content += t;
-          // Only forward tokens if this is still the current answer (it may
-          // have been replaced by a newer question since).
-          if (this.abortController === controller) this.post({ type: "token", text: t });
+      await streamChat(
+        baseUrl,
+        request,
+        controller.signal,
+        {
+          onToken: (t) => {
+            answer.content += t;
+            // Only forward tokens if this is still the current answer (it may
+            // have been replaced by a newer question since).
+            if (isCurrent()) this.post({ type: "token", text: t });
+          },
+          onStage: (name) => {
+            answer.stage = name;
+            if (isCurrent()) this.post({ type: "stage", name });
+          },
+          onVerification: (v) => {
+            // Stored on the turn and shown by the final postState() below.
+            answer.verification = v;
+          },
         },
-      });
+        path,
+      );
       // Safety net: the backend reports empty answers as errors itself, but
       // never show a "successful" blank bubble if one slips through anyway.
       if (!answer.content.trim()) {
@@ -196,6 +219,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
           err instanceof BackendError ? err.message : `Unexpected error: ${String(err)}`;
       }
     } finally {
+      // The answer is over (done, error, or Stop), so no step is running any more.
+      answer.stage = undefined;
       // Only the request that's still current may clear the controller and
       // send the final state; a superseded one must not clobber the new one.
       if (this.abortController === controller) {
@@ -248,6 +273,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       contextLabel: t.codeContext ? describeContext(t.codeContext) : undefined,
       error: t.error,
       stopped: t.stopped,
+      stage: t.stage,
+      verification: t.verification,
     }));
     this.post({ type: "state", messages, streaming: this.abortController !== undefined });
   }

@@ -210,3 +210,30 @@ button.secondary:hover:not(:disabled) {
   background: var(--vscode-badge-background);
   opacity: 0.85;
 }
+
+/* --- Agent mode: the Critic's findings under an answer ------------------------------ */
+.verification {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  font-size: 0.95em;
+}
+.verification.warn {
+  /* Warning colours, not error colours: these are possible problems, not failures. */
+  color: var(--vscode-foreground);
+  background: var(--vscode-inputValidation-warningBackground);
+  border: 1px solid var(--vscode-inputValidation-warningBorder);
+}
+.verification.ok {
+  color: var(--vscode-descriptionForeground);
+}
+.verification-title {
+  font-weight: 600;
+}
+.verification ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.issue-source {
+  color: var(--vscode-descriptionForeground);
+}
