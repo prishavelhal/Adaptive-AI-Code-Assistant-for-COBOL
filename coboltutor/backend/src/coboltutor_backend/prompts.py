@@ -47,7 +47,7 @@ right after the "|".
 @dataclass(frozen=True)
 class _StylePole:
     name: str  # ex: "process-oriented"
-    statement: str  # the paper's alignment statement for the style
+    statement: str  # the alignment statement for the style
     guidance: str  # what the tutor should do differently
 
 
