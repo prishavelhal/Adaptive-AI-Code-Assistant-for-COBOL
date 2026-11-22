@@ -7,7 +7,7 @@
 | Deciders | Capstone Team |
 | Superseded By | (link, if applicable) |
 
-##1 Problem and context: what decision is needed, why now, what happens if the team does nothing.
+**##1 Problem and context: what decision is needed, why now, what happens if the team does nothing.**
 Our project is an adaptive AI assistant designed to help developers understand legacy COBOL code. The main UI decision is whether to build the tool as a VS Code extension or a standalone browser application. Our goal is to let developers request explanations directly within their code editor without switching applications.
 
 
@@ -20,7 +20,7 @@ The timing of this decision matters because the team has established its technol
 Reversing this decision would become increasingly expensive as we develop VS Code-specific functionality. Switching to a browser application would require rebuilding editor interactions, modifying code-context handling, and rewriting integration tests. Our separate backend would remain largely reusable, but the frontend would require significant rework. Confirming this architecture now allows us to identify integration problems before investing further development time.
 
 
-##2 Options: at least three credible options including “do nothing”, each with its real costs.
+**##2 Options: at least three credible options including “do nothing”, each with its real costs.**
 VS Code extension with a  Vue webview
 This creates a flexible chat that can live in the sidebar of VS Code and use the planned TypeScript/Vue frontend. Costs of this would be separate extension and webview contexts, message passing, packaging, integration tests, and added security work.
 Standalone browser application:
@@ -33,7 +33,7 @@ Continue building backend and retrieval work, but this would force a late redesi
 This option would use VS Code's built-in UI components, such as commands, menus, and tree views, rather than a custom Vue webview. This could reduce the amount of custom frontend code and make the application more consistent with VS Code's native interface. However, our planned application includes interactive cognitive preference controls, streamed explanations, and different explanation formats that would be more difficult to implement using only native views. This option would make sense if we simplified the scope of our UI to basic code explanation commands rather than a fully interactive adaptive chat interface.
 
 
-##3 Analysis: for each option, the technical tradeoffs that matter (performance, complexity, maintainability, security, cost), argued from cited sources and your own project as a case study with evidence.
+**##3 Analysis: for each option, the technical tradeoffs that matter (performance, complexity, maintainability, security, cost), argued from cited sources and your own project as a case study with evidence.**
 The extension option best matched our intended workflow which is for users to ask about code where they are editing it directly in their code environment. VS code supports custom views in a sidebar or panel, and a webview [1] communicates with the extension through message passing. This would allow for a chat view but also created a method to design and test. The extension host would also broker editor context and messages rather than giving the Vue view direct editor access.
 A webview can render chat history, adaptive controls, and streamed text with the planned frontend. Some costs included in this would be that webviews are typically very resource-heavy, isolated, and only really make sense when native APIs are insufficient. We would need to use them sparingly, support themes and accessibility, and keep the editor focused. VS code’s security [2] also makes this part of the design important by restricting webview permissions and resources, validating messages and limiting what workspace content can be digested by the AI.
 
@@ -53,7 +53,7 @@ However, the prototype also revealed limitations that will need to be addressed.
 This distinction matters when evaluating the frontend architecture. A standalone browser application would not necessarily improve model response time because both interfaces would depend on the same backend. Instead, the extension should be evaluated on how effectively it handles code selection, communicates with the backend, and displays streamed responses. While we now have initial working software, we still lack controlled performance comparisons and user studies demonstrating whether the extension is more effective than a browser interface.
 
 
-##4 Recommendation and verification plan: what you propose based on the analysis and, concretely, how the team will know it was the right choice (tests, metrics, acceptance criteria).
+**##4 Recommendation and verification plan: what you propose based on the analysis and, concretely, how the team will know it was the right choice (tests, metrics, acceptance criteria).**
 Decision:
 We propose a VS Code extension with a sidebar/panel view. The extension host owns commands and editor access while the webview owns the presentation and sends typed messages to the host. The host calls the backend to relay response events. This tool will not be made through a parallel website for the walking skeleton. We will keep the backend independent of VS Code to allow for flexibility in case another UI were to be added so that it would not require too much remediation of retrieval or model orchestration.
 Consequences:
@@ -94,7 +94,7 @@ Reconsideration Criteria:
 We will revisit this architectural decision after the adaptive learning controls have been integrated into the working extension. If the extension cannot reliably capture code context, preserve cognitive preferences, communicate with the backend, or render streamed responses, we will determine whether these issues can be resolved within the existing architecture. If VS Code-specific limitations prevent us from implementing essential features or require disproportionate development effort, we will reconsider the native VS Code UI or standalone browser alternatives. This review will occur before we invest significant additional effort in polishing the complete frontend.
 
 
-##5 Constraints: licensing, data use, IP, and the partner confidentiality boundary as they bear on this decision.
+**##5 Constraints: licensing, data use, IP, and the partner confidentiality boundary as they bear on this decision.**
 The project plan is to use external publicly available COBOL documentation. We will not be using any proprietary IBM software, applications, or data.
 
 
@@ -104,7 +104,7 @@ We will send code only after explicit user action and confirm our data flow and 
 Because our application runs inside VS Code, we also need to consider how workspace code is accessed and transmitted. The extension host will be responsible for accessing selected code, while the webview will manage the user interface. We should avoid giving the webview unrestricted access to workspace files and validate messages exchanged between the two components. We also need to ensure that any code submitted to the model is sent only to an approved backend endpoint. These constraints directly influence our architectural choice because they require us to maintain a clear separation between editor access, UI presentation, and backend processing.
 
 
-##6 Delegation and validation: what you handed to AI tools on this decision, what checks made that reasonable (tests, CI, review gates, staging, a rollback path), and the specific points where you stopped and validated the result yourself. 
+**##6 Delegation and validation: what you handed to AI tools on this decision, what checks made that reasonable (tests, CI, review gates, staging, a rollback path), and the specific points where you stopped and validated the result yourself. **
 I used an AI assistant to organize and draft some sections of this RFC, to compare various options, and to locate VS Code documentation. I have not treated the CI run as proof of extension functionality or results of performance. I reviewed the recommendation against the FIgma designs and learning-layer documentation developed with Sarah. The team has since proceeded with the extension architecture, although the full adaptive interface still requires validation. We will also confirm with our IBM mentors that the code-context flow respects the project’s confidentiality boundaries. Since the initial RFC draft, the team has implemented a local VS Code extension prototype and updated our CI workflow to support the new backend and extension structure.
 
 
