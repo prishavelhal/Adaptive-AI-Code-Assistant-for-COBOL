@@ -237,3 +237,9 @@ button.secondary:hover:not(:disabled) {
 .issue-source {
   color: var(--vscode-descriptionForeground);
 }
+.verification code {
+  font-family: var(--vscode-editor-font-family);
+  background: var(--vscode-textCodeBlock-background);
+  padding: 0 3px;
+  border-radius: 3px;
+}

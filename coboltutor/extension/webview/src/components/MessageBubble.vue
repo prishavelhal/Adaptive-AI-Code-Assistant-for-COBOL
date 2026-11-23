@@ -33,6 +33,18 @@ const stageLabel = computed(() =>
 );
 
 const issues = computed(() => props.message.verification?.issues ?? []);
+
+/**
+ * Split an issue message on `backticks` so names like `4000-WRITE-FILE` can be
+ * shown as code. Odd-numbered parts were inside backticks. The parts are
+ * rendered with {{ }} interpolation, so this never interprets the text as HTML.
+ */
+function splitCode(text: string): { text: string; code: boolean }[] {
+  return text
+    .split("`")
+    .map((part, i) => ({ text: part, code: i % 2 === 1 }))
+    .filter((part) => part.text !== "");
+}
 </script>
 
 <template>
@@ -63,8 +75,12 @@ const issues = computed(() => props.message.verification?.issues ?? []);
       </div>
       <ul>
         <li v-for="(issue, i) in issues" :key="i">
-          {{ issue.message }}
-          <span v-if="issue.source === 'review'" class="issue-source">(model review)</span>
+          <template v-for="(part, j) in splitCode(issue.message)" :key="j">
+            <code v-if="part.code">{{ part.text }}</code>
+            <template v-else>{{ part.text }}</template>
+          </template>
+          <!-- The space is inside {{ }} because Vue drops whitespace between tags here. -->
+          <span v-if="issue.source === 'review'" class="issue-source">{{ " (model review)" }}</span>
         </li>
       </ul>
     </div>
