@@ -37,6 +37,12 @@ function handleHostMessage(msg: HostToWebview): void {
       if (last && last.role === "assistant") last.content += msg.text;
       break;
     }
+    case "stage": {
+      // Agent mode: show which step the answer being generated is on.
+      const last = messages.value[messages.value.length - 1];
+      if (last && last.role === "assistant") last.stage = msg.name;
+      break;
+    }
     case "activeContext":
       activeLabel.value = msg.label;
       includeActive.value = msg.include;

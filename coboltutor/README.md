@@ -84,6 +84,7 @@ To install the extension permanently instead of using F5, run `pnpm package` in
 | -------------------------------------- | ----------------------- | ----------------------------------------------- |
 | `coboltutor.backendUrl`                 | `http://127.0.0.1:8000` | Where the backend is running                    |
 | `coboltutor.includeActiveFileByDefault` | `true`                  | Whether 📎 starts on when VSCode opens            |
+| `coboltutor.useAgents`                  | `false`                 | Experimental: answer with the agent pipeline (`/api/agent-chat`). Shows each step while it works and, under the answer, any possible problems the Critic found. See `backend/README.md` |
 
 Backend settings are environment variables; see `backend/README.md`.
 
