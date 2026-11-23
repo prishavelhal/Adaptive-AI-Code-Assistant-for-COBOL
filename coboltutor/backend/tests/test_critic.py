@@ -9,6 +9,7 @@ from test_api import client, parse_sse
 
 from coboltutor_backend.agents.analyzer import analyze
 from coboltutor_backend.agents.critic import check_answer, parse_review
+from coboltutor_backend.agents.orchestrator import latest_code_context
 from coboltutor_backend.agents.settings import AgentSettings, get_agent_settings
 from coboltutor_backend.main import app, get_llm
 from coboltutor_backend.schemas import ChatRequest, CodeContext
@@ -40,7 +41,8 @@ def make_request(code: str = CODE, start_line: int = 1, question: str = "Explain
 
 def check(answer: str, request: ChatRequest | None = None) -> list[str]:
     request = request or make_request()
-    ctx = request.messages[-1].code_context
+    # The code being discussed: the newest message with code (as the orchestrator picks it).
+    ctx = latest_code_context(request)
     assert ctx is not None
     return [i.message for i in check_answer(answer, request, analyze(ctx))]
 
@@ -174,3 +176,41 @@ def test_failed_model_review_never_breaks_the_answer(client: TestClient) -> None
     events = run(client, llm, llm_review=True)
     assert events[-1] == ("done", {})
     assert events[-2] == ("verification", {"issues": [], "reviewed_by_model": False})
+
+
+def test_name_invented_in_an_earlier_answer_is_still_flagged() -> None:
+    first = make_request().model_dump()["messages"][0]  # the question with code attached
+    request = ChatRequest.model_validate(
+        {
+            "messages": [
+                first,
+                {"role": "assistant", "content": "It calls 4000-WRITE-FILE."},
+                {"role": "user", "content": "What does that paragraph do?"},
+            ]
+        }
+    )
+    assert check("4000-WRITE-FILE writes the report.", request) == [
+        "The answer mentions `4000-WRITE-FILE`, which doesn't appear in the attached code."
+    ]
+
+
+def test_standard_cobol_and_general_terms_are_not_flagged() -> None:
+    answer = (
+        "DL-GROSS would be NUMERIC-EDITED and a report line ALPHANUMERIC-EDITED. At "
+        "END-OF-FILE the loop stops. This IF-ELSE logic, LINE-SEQUENTIAL files, COBOL-74 vs "
+        "ANSI-85, IEEE-754, ISO-8601, UTF-16, IBM-1047, DAY-OF-WEEK, LINE-COUNTER, "
+        "ALPHABETIC-UPPER, PROCEDURE-POINTER, XML-CODE, FILE-STATUS."
+    )
+    # DL-GROSS isn't in this small sample, so it's the only expected flag.
+    assert check(answer) == [
+        "The answer mentions `DL-GROSS`, which doesn't appear in the attached code."
+    ]
+
+
+def test_copybook_softens_the_unknown_name_message() -> None:
+    code = CODE + "\n           COPY CUSTREC."
+    issues = check("CUST-NAME holds the name.", make_request(code=code))
+    assert issues == [
+        "The answer mentions `CUST-NAME`, which doesn't appear in the attached code. "
+        "It may come from a copybook (COPY), which wasn't attached."
+    ]
