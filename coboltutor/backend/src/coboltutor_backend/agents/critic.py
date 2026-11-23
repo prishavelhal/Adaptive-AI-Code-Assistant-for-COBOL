@@ -82,19 +82,40 @@ _ALWAYS_KNOWN = {
             "PERFORM READ RETURN REWRITE SEARCH START STRING SUBTRACT UNSTRING WRITE"
         ).split()
     ),
+    "END-OF-FILE", "END-OF-PAGE",
     # divisions, sections, paragraphs in the IDENTIFICATION/ENVIRONMENT DIVISIONs
-    "PROGRAM-ID", "WORKING-STORAGE", "LOCAL-STORAGE", "FILE-CONTROL", "INPUT-OUTPUT",
-    "I-O", "I-O-CONTROL", "SOURCE-COMPUTER", "OBJECT-COMPUTER", "SPECIAL-NAMES",
-    "DATE-WRITTEN", "DATE-COMPILED", "END-PROGRAM",
-    # usage and figurative constants
+    "PROGRAM-ID", "CLASS-ID", "METHOD-ID", "WORKING-STORAGE", "LOCAL-STORAGE",
+    "FILE-CONTROL", "INPUT-OUTPUT", "I-O", "I-O-CONTROL", "SOURCE-COMPUTER",
+    "OBJECT-COMPUTER", "SPECIAL-NAMES", "DATE-WRITTEN", "DATE-COMPILED", "END-PROGRAM",
+    "DECIMAL-POINT", "CODE-SET", "SEGMENT-LIMIT",
+    # file organisation and record handling
+    "LINE-SEQUENTIAL", "RECORD-SEQUENTIAL", "RELATIVE-KEY", "RECORD-KEY",
+    "ALTERNATE-KEY", "FILE-STATUS", "SORT-MERGE",
+    # data categories, usage, and figurative constants
+    "NUMERIC-EDITED", "ALPHANUMERIC-EDITED", "NATIONAL-EDITED", "ALPHABETIC-LOWER",
+    "ALPHABETIC-UPPER", "PROCEDURE-POINTER", "FUNCTION-POINTER",
     *(f"COMP-{n}" for n in "12345"), *(f"COMPUTATIONAL-{n}" for n in "12345"),
     "PACKED-DECIMAL", "HIGH-VALUE", "HIGH-VALUES", "LOW-VALUE", "LOW-VALUES",
-    # special registers and common intrinsic functions
-    "RETURN-CODE", "SORT-RETURN", "WHEN-COMPILED", "LINAGE-COUNTER", "CURRENT-DATE",
-    "NUMVAL-C", "UPPER-CASE", "LOWER-CASE", "INTEGER-OF-DATE", "DATE-OF-INTEGER",
-    # not COBOL, but common in explanations
-    "UTF-8", "ISO-8859-1", "COBOL-85", "COBOL-2002", "COBOL-2014", "IBM-370",
+    "SHIFT-IN", "SHIFT-OUT",
+    # special registers
+    "RETURN-CODE", "SORT-RETURN", "SORT-CONTROL", "SORT-CORE-SIZE", "SORT-FILE-SIZE",
+    "SORT-MESSAGE", "SORT-MODE-SIZE", "WHEN-COMPILED", "LINAGE-COUNTER",
+    "LINE-COUNTER", "PAGE-COUNTER", "DEBUG-ITEM", "XML-CODE", "XML-EVENT", "XML-TEXT",
+    "XML-NTEXT", "JSON-CODE", "JSON-STATUS", "DAY-OF-WEEK", "TIME-OF-DAY",
+    # common intrinsic functions
+    "CURRENT-DATE", "NUMVAL-C", "NUMVAL-F", "UPPER-CASE", "LOWER-CASE",
+    "INTEGER-OF-DATE", "DATE-OF-INTEGER", "INTEGER-OF-DAY", "DAY-OF-INTEGER",
+    "DATE-TO-YYYYMMDD", "DAY-TO-YYYYDDD", "YEAR-TO-YYYY",
+    "DISPLAY-OF", "NATIONAL-OF", "TEST-NUMVAL", "TEST-DATE-YYYYMMDD",
+    # general programming terms that explanations write in capitals
+    "IF-ELSE", "IF-THEN", "IF-THEN-ELSE", "DO-WHILE", "DO-UNTIL", "GO-TO",
+    "TOP-DOWN", "Z-OS",
 }  # fmt: skip
+
+# Standards, encodings, and dialect names with a number: ISO-8601, IEEE-754,
+# UTF-16, ANSI-85, COBOL-74, IBM-1047, CP-037, ... A user-defined name such as
+# "TOTAL-2" never starts with one of these prefixes, so this can't hide it.
+_STANDARD_NAME = re.compile(r"^(?:ISO|IEEE|UTF|UCS|ANSI|COBOL|IBM|CP|RFC|ECMA|X3)(?:-\d+)+$")
 
 
 def _known_names(request: ChatRequest) -> set[str]:
@@ -104,9 +125,14 @@ def _known_names(request: ChatRequest) -> set[str]:
     latest, since follow-ups may refer back), anything the user typed, and the
     reserved words above. Matching against the raw text (not the Analyzer's
     lists) means keywords in the code, like WORKING-STORAGE, never get flagged.
+
+    Earlier *assistant* answers are deliberately not trusted: if the model
+    invented a name once, repeating it in a follow-up must still be flagged.
     """
     known = set(_ALWAYS_KNOWN)
     for msg in request.messages:
+        if msg.role != "user":
+            continue
         texts = [msg.content.upper()]
         if msg.code_context is not None:
             texts.append(msg.code_context.code.upper())
@@ -150,16 +176,22 @@ def check_answer(answer: str, request: ChatRequest, analysis: CodeAnalysis) -> l
 
     # --- names that appear nowhere in the code or conversation -----------------
     known = _known_names(request)
+    # Names defined in a copybook aren't in the attached code, so soften the
+    # message when the code COPYs anything: the name may be real, just unseen.
+    hint = (
+        " It may come from a copybook (COPY), which wasn't attached." if analysis.copybooks else ""
+    )
     reported_names: set[str] = set()
     for name in _COBOL_NAME.findall(answer):
-        if name not in known and name not in reported_names:
-            reported_names.add(name)
-            issues.append(
-                Issue(
-                    "check",
-                    f"The answer mentions `{name}`, which doesn't appear in the attached code.",
-                )
+        if name in known or name in reported_names or _STANDARD_NAME.match(name):
+            continue
+        reported_names.add(name)
+        issues.append(
+            Issue(
+                "check",
+                f"The answer mentions `{name}`, which doesn't appear in the attached code.{hint}",
             )
+        )
     return issues
 
 
