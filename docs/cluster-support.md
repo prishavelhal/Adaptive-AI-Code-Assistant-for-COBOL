@@ -4,7 +4,9 @@
 
 1. **Enable your HPC account and connect to the cluster via the school's VPN.** Follow [this link](https://it.engineering.oregonstate.edu/hpc) and follow the directions under **Getting started with the COE HPC cluster**. This will take you through all the steps needed to access the cluster. It is important to use the VPN so that you can connect to a virtual desktop to run VSCode.
 
-2. **Launch an Advanced Desktop session.** 
+2. **Launch an Advanced Desktop session.** Follow [this link](https://submit-b.hpc.engr.oregonstate.edu/), this will take you to the web GUI for the cluster. Sign in and click on `My Interactive Sessions` in the orange top bar. There, underneath the `Interactive Tabs` box you will see an option for `Advanced Desktop`, which is a way to run a desktop environment on a cluster node. Click on it, and it'll take you to a screen where you can configure the desktop.
+
+In the menu for configuring the desktop, go to **Queue/Partition** and select `dgxh`. This is the most powerful partition of the cluster, and has the GPUs that AI team will be building the application around. 
 
 3. **Download VSCode.** Open firefox and go to VSCode's page, and hit the **Download for Linux** button in the top right hand corner. Make sure to hit just the big part of the button, as that will download the .tar.gz version. We need to use the .tar.gz version because using the .rpm version requires sudo permissions, and we do not have sudo permission on the cluster.
 

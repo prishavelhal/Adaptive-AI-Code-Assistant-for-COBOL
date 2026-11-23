@@ -23,7 +23,7 @@
 # of them on the command line, e.g.:  sbatch --time=8:00:00 scripts/cluster/serve-vllm.sbatch
 #
 # TODO: set the partition to a GPU partition. Run `sinfo` to list them.
-#SBATCH --partition=gpu
+#SBATCH --partition=dgxh --constraint=h200
 #SBATCH --job-name=granite-vllm
 # GPUs. A dense 30B model in bf16 needs ~60 GB for the weights alone, so one
 # 80 GB GPU, or 2 GPUs plus --tensor-parallel-size 2 in VLLM_EXTRA_ARGS.

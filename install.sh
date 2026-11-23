@@ -20,6 +20,10 @@
 #   6. Starts the stack and waits until the backend says the model is ready.
 #   7. Installs the CobolTutor extension into every editor it found.
 #
+# On the OSU CoE HPC cluster it offers a different install instead (see
+# "OSU CoE HPC cluster" below and docs/cluster-support.md): Granite 4.2 30B on
+# vLLM, with no Docker and no sudo.
+#
 # It's safe to run again: finished steps are detected and skipped, and models
 # that are already downloaded aren't downloaded again.
 #
@@ -69,6 +73,7 @@ DO_MODELS=1       # --no-models
 DO_EXTENSION=1    # --no-extension
 DO_EDITOR=1       # --no-editor  (don't install VS Code if no editor is found)
 DRY_RUN=0         # --dry-run
+CLUSTER=auto      # --cluster / --no-cluster  (auto = ask when on the HPC cluster)
 
 usage() {
   cat <<EOF
@@ -86,7 +91,11 @@ Options:
       --no-extension    Don't build or install the VS Code extension.
       --no-editor       Don't install VS Code if no editor is found.
       --dry-run         Show what would happen without changing anything.
-  -h, --help            Show this help.
+      --cluster         Set up for the OSU HPC cluster (Granite 30B on vLLM)
+                        without asking. --gpu, --ollama and --no-models
+                        don't apply there.
+      --no-cluster      Do the normal Docker install even on the cluster.
+  -h, --help           Show this help.
 
 Environment: NO_COLOR=1 turns off colors.
 EOF
@@ -104,6 +113,8 @@ while [ $# -gt 0 ]; do
     --no-extension) DO_EXTENSION=0 ;;
     --no-editor) DO_EDITOR=0 ;;
     --dry-run) DRY_RUN=1 ;;
+    --cluster) CLUSTER=yes ;;
+    --no-cluster) CLUSTER=no ;;
     -h | --help) usage; exit 0 ;;
     *) echo "Unknown option: $1 (try --help)" >&2; exit 2 ;;
   esac
@@ -808,6 +819,9 @@ find_editors() {
   have cursor && add_editor "Cursor" "$(command -v cursor)"
   have codium && add_editor "VSCodium" "$(command -v codium)"
   have windsurf && add_editor "Windsurf" "$(command -v windsurf)"
+  # The .tar.gz build of VS Code, unpacked into the home folder: how
+  # docs/cluster-support.md installs it on the cluster, where there's no sudo.
+  add_editor "VS Code" "$HOME/VSCode-linux-x64/bin/code"
   if [ "$OS" = macos ]; then
     # Apps whose CLI isn't on PATH ("Install 'code' command" never run).
     for c in /Applications "$HOME/Applications"; do
@@ -860,7 +874,9 @@ step_editor() {
   if [ "$DO_EXTENSION" = 0 ]; then info "Skipped (--no-extension)"; return; fi
   find_editors
   if [ ${#EDITOR_NAMES[@]} -eq 0 ]; then
-    if [ "$DO_EDITOR" = 0 ]; then
+    if [ "$CLUSTER" = yes ]; then
+      warn "No VS Code found. Install it as in step 3 of docs/cluster-support.md, then run this again."
+    elif [ "$DO_EDITOR" = 0 ]; then
       warn "No VS Code-compatible editor found; skipping (--no-editor)."
     elif [ "$OS" = linux ] && [ "$HAS_GUI" = 0 ]; then
       warn "No editor found, and this looks like a machine without a desktop, so VS Code won't be installed."
@@ -901,6 +917,7 @@ build_extension() {
     echo ">>> Building with Node $(node -v) on this machine"
     (cd "$EXT_DIR" && npx --yes "pnpm@$PNPM_VERSION" install --frozen-lockfile &&
       npx --yes "pnpm@$PNPM_VERSION" run package) && return 0
+    [ "$CLUSTER" = yes ] && return 1 # the cluster has no Docker to fall back on
     echo ">>> Local build failed; trying again in a container"
   fi
   echo ">>> Building in $NODE_IMAGE"
@@ -1152,9 +1169,174 @@ finish() {
   echo
 }
 
+# =============================================================================
+# OSU CoE HPC cluster
+# =============================================================================
+# The cluster has big GPUs but no Docker and no sudo, so CobolTutor runs there
+# differently (docs/cluster-support.md): Granite 4.2 30B served by vLLM, with
+# the backend run straight from the repo. This install:
+#   1. checks the node (GPU, HPC share, model id),
+#   2. finds VS Code (never installs it: that would need sudo),
+#   3. runs scripts/cluster/setup.sh (vLLM venv + private API key) while the
+#      extension builds in the background with the cluster's Node module,
+#   4. installs the extension.
+# It doesn't start the model or the backend: both run in their own terminals
+# for as long as you use the tutor, so the summary shows how to start them.
+CLUSTER_DIR="$ROOT_DIR/scripts/cluster"
+CLUSTER_PROFILE="$APP_DIR/backend/profiles/cluster-vllm.conf"
+CLUSTER_DOMAIN="hpc.engr.oregonstate.edu"
+CLUSTER_MIN_DISK_GB=100 # vLLM + PyTorch (~15 GB) + the 30B weights (~60 GB) + headroom
+
+# Every node of the cluster (login, desktop, GPU) is named *.$CLUSTER_DOMAIN.
+on_cluster() {
+  case "$(hostname -f 2>/dev/null || hostname)" in *."$CLUSTER_DOMAIN") return 0 ;; esac
+  return 1
+}
+
+# Decide between the cluster install and the normal one. Asks only when this
+# looks like the cluster and neither --cluster nor --no-cluster was given;
+# --yes answers yes.
+use_cluster_mode() {
+  case "$CLUSTER" in yes) return 0 ;; no) return 1 ;; esac
+  on_cluster || return 1
+  info "This looks like the OSU HPC cluster ($(hostname -s))."
+  note "There, CobolTutor runs Granite 4.2 30B on the cluster's GPUs with vLLM, instead of 8B in Docker."
+  confirm "Set up the cluster version?" Y
+}
+
+# A setting from the cluster profile, e.g. profile_value VLLM_MODEL_ID.
+profile_value() { sed -n "s/^$1=//p" "$CLUSTER_PROFILE" | head -n1 | tr -d '"'; }
+
+# Put Node 22+ on PATH for the extension build. The cluster's system Node is
+# v16, too old, but Lmod has newer ones: `module load nodejs` loads the default
+# (newest) one. Lmod's shell code reads unset variables, so `set -u` is
+# switched off around it.
+load_cluster_node() {
+  host_node_ok && return 0
+  set +u
+  if ! type module >/dev/null 2>&1 && [ -r /usr/share/lmod/lmod/init/bash ]; then
+    # shellcheck disable=SC1091
+    . /usr/share/lmod/lmod/init/bash
+  fi
+  type module >/dev/null 2>&1 && module load nodejs >/dev/null 2>&1
+  set -u
+  host_node_ok
+}
+
+cluster_step_system() {
+  step "Checking the cluster node"
+  detect_os
+  [ "$OS" = linux ] || die "--cluster only works on the cluster's Linux nodes."
+  [ -f "$CLUSTER_DIR/setup.sh" ] && [ -f "$CLUSTER_PROFILE" ] ||
+    die "Can't find scripts/cluster/ and $CLUSTER_PROFILE. Run this from a clone of the repository."
+  on_cluster || warn "This doesn't look like the OSU HPC cluster; the cluster scripts may not work here."
+
+  # HPC_DIR, and every cache (pip, uv, pnpm, Hugging Face) pointed at the HPC
+  # share instead of the small home folder. npm's cache isn't covered by
+  # env.sh, so point it there too.
+  # shellcheck source=scripts/cluster/env.sh
+  . "$CLUSTER_DIR/env.sh"
+  export npm_config_cache="$HPC_DIR/npm-cache"
+  [ -d "$HPC_DIR" ] || die "$HPC_DIR doesn't exist. Set COBOLTUTOR_HPC_DIR to a directory with ~${CLUSTER_MIN_DISK_GB} GB free (see docs/cluster-support.md)."
+
+  local gpu="none on this node" kb free_gb model_id
+  if have nvidia-smi && nvidia-smi -L >/dev/null 2>&1; then
+    gpu="$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null | head -n1 | sed 's/, / - /')"
+  fi
+  kb=$(df -Pk "$HPC_DIR" 2>/dev/null | awk 'NR == 2 {print $4}')
+  free_gb=$((${kb:-0} / 1048576))
+  model_id="$(profile_value VLLM_MODEL_ID)"
+
+  kv "Node" "$(hostname -s) ${C_DIM}(Slurm job ${SLURM_JOB_ID:-none})${C_RESET}"
+  kv "GPU" "$gpu"
+  kv "HPC share" "$HPC_DIR ${C_DIM}(${free_gb} GB free)${C_RESET}"
+  kv "Model" "$model_id"
+  kv "Granite runs" "NVIDIA GPU ${C_DIM}via vLLM on the cluster${C_RESET}"
+
+  [ "$gpu" = "none on this node" ] &&
+    warn "No GPU here. Installing is fine, but to run the model use an Advanced Desktop session with a GPU, or: sbatch scripts/cluster/serve-vllm.sbatch"
+  case "$model_id" in *CHANGE-ME*)
+    warn "Set VLLM_MODEL_ID in ${CLUSTER_PROFILE#"$ROOT_DIR"/} before starting the model." ;;
+  esac
+  if [ ! -x "$HPC_DIR/vllm-venv/bin/vllm" ] && [ "$free_gb" -lt "$CLUSTER_MIN_DISK_GB" ]; then
+    warn "Only ${free_gb} GB free in $HPC_DIR; vLLM and the 30B model need about ${CLUSTER_MIN_DISK_GB} GB."
+    confirm "Continue anyway?" N || die "Stopped. Free up space, or set COBOLTUTOR_HPC_DIR to another directory."
+  fi
+
+  echo
+  confirm "Set up CobolTutor for the cluster with these settings?" Y || { info "Nothing changed. Options: ./install.sh --help"; exit 0; }
+}
+
+cluster_step_vllm() {
+  step "vLLM + extension build"
+  # Start the extension build first, so it runs while vLLM installs.
+  if [ "$DO_EXTENSION" = 1 ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      info "[dry-run] module load nodejs, then build coboltutor-$EXT_VERSION.vsix in the background"
+    elif load_cluster_node; then
+      BG_START=$SECONDS
+      build_extension >"$LOG_DIR/extension-build.log" 2>&1 </dev/null &
+      EXTENSION_PID=$!; BG_PIDS="$BG_PIDS $EXTENSION_PID"
+      info "Building the VS Code extension in the background ${C_DIM}(Node $(node -v))${C_RESET}"
+    else
+      die "Couldn't load Node 22 or newer ('module load nodejs' failed). See 'module avail nodejs', or re-run with --no-extension."
+    fi
+  fi
+
+  note "Installing vLLM into $HPC_DIR. The first time this downloads several GB; later runs skip it."
+  live "$CLUSTER_DIR/setup.sh" || die "scripts/cluster/setup.sh failed; see its output above."
+  ok "vLLM is set up"
+}
+
+cluster_finish() {
+  local model_id served
+  model_id="$(profile_value VLLM_MODEL_ID)"
+  served="$(profile_value COBOLTUTOR_LLM_MODEL)"
+  echo
+  printf '  %s%s%s\n' "$C_GREEN" "$(hrule 58)" "$C_RESET"
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '  %s%s Dry run finished: nothing was changed.%s\n' "$C_BOLD" "$S_OK" "$C_RESET"
+  else
+    printf '  %s%s%s CobolTutor is set up for the cluster!%s\n' "$C_GREEN" "$C_BOLD" "$S_OK" "$C_RESET"
+  fi
+  printf '  %s%s%s\n\n' "$C_GREEN" "$(hrule 58)" "$C_RESET"
+  kv "Model" "$model_id ${C_DIM}(served as $served)${C_RESET}"
+  kv "Backend" "$BACKEND_URL"
+  [ ${#EDITOR_NAMES[@]} -gt 0 ] && kv "Extension in" "$(printf '%s, ' "${EDITOR_NAMES[@]}" | sed 's/, $//')"
+  echo
+  printf '  %sStart it%s %s(each time, in your Advanced Desktop session, from the repo folder)%s\n' "$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
+  echo "    1. Terminal 1:  scripts/cluster/serve-vllm.sh"
+  note "   Wait for \"Application startup complete\". The first start downloads the model (~60 GB)."
+  echo "    2. Terminal 2:  scripts/cluster/run-backend.sh"
+  echo "    3. VS Code:     run 'Developer: Reload Window', then 'CobolTutor: Check Backend Connection'."
+  echo
+  printf '  %sTry it%s\n' "$C_BOLD" "$C_RESET"
+  echo "    Open coboltutor/examples/PAYROLL.cbl, right-click $S_ARROW Explain This File,"
+  echo "    or click the CobolTutor icon in the activity bar and ask a question."
+  echo
+  note "Stop with Ctrl+C in each terminal. No GPU in your session? See 'batch job' in docs/cluster-support.md."
+  [ -d "$LOG_DIR" ] && note "Install logs: ${LOG_DIR#"$ROOT_DIR"/}"
+  echo
+}
+
+cluster_main() {
+  TOTAL_STEPS=4
+  cluster_step_system
+  step_editor
+  cluster_step_vllm
+  step_extension
+  cluster_finish
+}
+
 main() {
   banner
   [ "$DRY_RUN" = 0 ] && mkdir -p "$LOG_DIR"
+  if use_cluster_mode; then
+    CLUSTER=yes
+    cluster_main
+    return
+  fi
+  CLUSTER=no
   step_system
   ensure_docker
   step_accel
