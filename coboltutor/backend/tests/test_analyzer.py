@@ -130,3 +130,44 @@ def test_free_format_and_garbage_input() -> None:
     junk = analyze(ctx("hello world\n{}\n\t\t"))
     assert junk.is_empty
     assert render_analysis(junk) == ""
+
+
+def test_free_format_statements_are_not_paragraphs() -> None:
+    # Free format has no Area A, so one-word statements and scope terminators
+    # sit at the same indentation as paragraph names.
+    free = "\n".join(
+        ["PROCEDURE DIVISION.", "MAIN.", "  IF X > 1", "  CONTINUE.", "  END-IF.", "  EXIT."]
+        + ["NEXT-PARA.", "  STOP RUN."]
+    )
+    assert [p.name for p in analyze(ctx(free)).paragraphs] == ["MAIN", "NEXT-PARA"]
+
+
+def test_paragraph_header_with_statement_on_same_line() -> None:
+    code = "\n".join(
+        [
+            "       PROCEDURE DIVISION.",
+            "       MAIN-PARA. PERFORM SUB-PARA.",
+            "       SUB-PARA.  STOP RUN.",
+        ]
+    )
+    a = analyze(ctx(code))
+    assert [p.name for p in a.paragraphs] == ["MAIN-PARA", "SUB-PARA"]
+    # The PERFORM after the header is still seen, and it resolves.
+    assert [(r.target, r.line) for r in a.references] == [("SUB-PARA", 2)]
+    assert a.unresolved_targets == []
+
+
+def test_copybooks_are_recorded() -> None:
+    code = "\n".join(
+        [
+            "       DATA DIVISION.",
+            "       WORKING-STORAGE SECTION.",
+            "           COPY CUSTREC.",
+            "       PROCEDURE DIVISION.",
+            "       M.",
+            "           DISPLAY CUST-NAME.",
+        ]
+    )
+    a = analyze(ctx(code))
+    assert [(c.name, c.line) for c in a.copybooks] == [("CUSTREC", 3)]
+    assert "Copybooks (COPY): CUSTREC (line 3)" in render_analysis(a)

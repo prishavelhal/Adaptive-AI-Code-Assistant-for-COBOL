@@ -65,6 +65,7 @@ class CodeAnalysis:
     references: list[Reference] = field(default_factory=list)
     files: list[Located] = field(default_factory=list)  # SELECT ... ASSIGN
     embedded: list[Located] = field(default_factory=list)  # EXEC SQL / EXEC CICS / ...
+    copybooks: list[Located] = field(default_factory=list)  # COPY name
 
     @property
     def unresolved_targets(self) -> list[Reference]:
@@ -87,6 +88,7 @@ class CodeAnalysis:
             or self.references
             or self.files
             or self.embedded
+            or self.copybooks
         )
 
 
@@ -149,7 +151,10 @@ def _source_lines(code: str, start_line: int) -> list[_SourceLine]:
 _NAME = r"[A-Z0-9][A-Z0-9-]*"
 _DIVISION = re.compile(rf"^({_NAME})\s+DIVISION\b")
 _SECTION = re.compile(rf"^({_NAME})\s+SECTION\s*\.")
-_PARAGRAPH = re.compile(rf"^({_NAME})\s*\.\s*$")
+# A paragraph header: the name and a period, optionally followed by the first
+# statement on the same line ("MAIN-PARA. DISPLAY 'HI'."). The rest of the line
+# is captured so it can still be scanned for PERFORM / GO TO / CALL.
+_PARAGRAPH = re.compile(rf"^({_NAME})\s*\.(?:\s+(.*))?$")
 _PROGRAM_ID = re.compile(rf"^PROGRAM-ID\s*\.?\s*({_NAME})")
 _DATA_ITEM = re.compile(rf"^(\d{{1,2}})\s+({_NAME})\b(.*)$")
 _PICTURE = re.compile(r"\bPIC(?:TURE)?\s+(?:IS\s+)?(\S+?)\.?(?=\s|$)")
@@ -161,11 +166,23 @@ _GO_TO = re.compile(rf"\bGO\s+TO\s+({_NAME})")
 _CALL = re.compile(rf"\bCALL\s+(\"\"|{_NAME})")
 _SELECT = re.compile(rf"^SELECT\s+(?:OPTIONAL\s+)?({_NAME})")
 _EXEC = re.compile(r"\bEXEC\s+(SQL|CICS|DLI|SQLIMS)\b")
+_COPY = re.compile(rf"\bCOPY\s+({_NAME})")
 
 # Words that can follow PERFORM without naming a paragraph (inline PERFORMs).
 _PERFORM_KEYWORDS = {"UNTIL", "VARYING", "WITH", "TEST", "FOREVER"}
-# Area A words that end in a period but aren't paragraph names.
-_NOT_PARAGRAPHS = {"END-PROGRAM", "EXIT", "GOBACK", "STOP", "SKIP1", "SKIP2", "SKIP3", "EJECT"}
+# Words that can stand alone with a period but aren't paragraph names: one-word
+# statements and compiler directives. Free-format code has no Area A, so these
+# can appear at the same indentation as real paragraph names. Scope terminators
+# (END-IF, END-PERFORM, ...) are excluded separately by their END- prefix.
+_NOT_PARAGRAPHS = {
+    "CONTINUE", "EXIT", "GOBACK", "STOP", "NEXT", "ELSE", "OTHERWISE",
+    "SKIP1", "SKIP2", "SKIP3", "EJECT", "TITLE",
+}  # fmt: skip
+
+
+def _is_paragraph_name(name: str) -> bool:
+    return name not in _NOT_PARAGRAPHS and not name.startswith("END-")
+
 
 # The only real division names. "ID" is the short form of IDENTIFICATION. Anything
 # else followed by DIVISION (e.g. inside a comment that slipped through) is ignored.
@@ -208,6 +225,9 @@ def analyze(ctx: CodeContext) -> CodeAnalysis:
 
         for em in _EXEC.finditer(text):
             result.embedded.append(Located(f"EXEC {em.group(1)}", line.number))
+        # COPY can appear in any division; the copied names won't be in this code.
+        for cm in _COPY.finditer(text):
+            result.copybooks.append(Located(cm.group(1), line.number))
 
         if m := _SELECT.match(text):
             result.files.append(Located(m.group(1), line.number))
@@ -237,9 +257,10 @@ def analyze(ctx: CodeContext) -> CodeAnalysis:
         if division not in (None, "PROCEDURE"):
             continue
 
-        if line.area_a and (m := _PARAGRAPH.match(text)) and m.group(1) not in _NOT_PARAGRAPHS:
+        if line.area_a and (m := _PARAGRAPH.match(text)) and _is_paragraph_name(m.group(1)):
             result.paragraphs.append(Located(m.group(1), line.number))
-            continue
+            # Keep scanning the statement that may follow on the same line.
+            text = m.group(2) or ""
 
         for pm in _PERFORM.finditer(text):
             target, thru = pm.group(1), pm.group(2)
@@ -325,6 +346,11 @@ def render_analysis(analysis: CodeAnalysis, max_items: int = 40) -> str:
         lines.append(f"- Targets {where}: {', '.join(names[:max_items])}")
     if analysis.files:
         lines.append(f"- Files (SELECT): {_fmt_located(analysis.files, max_items)}")
+    if analysis.copybooks:
+        lines.append(
+            f"- Copybooks (COPY): {_fmt_located(analysis.copybooks, max_items)}. Their "
+            "contents are not shown, so names they define won't appear in the code above."
+        )
     if analysis.embedded:
         lines.append(f"- Embedded statements: {_fmt_located(analysis.embedded, max_items)}")
     return "\n".join(lines)
