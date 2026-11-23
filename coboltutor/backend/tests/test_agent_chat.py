@@ -43,8 +43,16 @@ def test_stages_then_tokens_then_done(client: TestClient) -> None:
         ("stage", {"name": "explain"}),
         ("token", {"text": "Hello"}),
         ("token", {"text": " world"}),
+        ("stage", {"name": "verify"}),
+        ("verification", {"issues": [], "reviewed_by_model": False}),
         ("done", {}),
     ]
+
+
+def test_no_verify_stage_without_code(client: TestClient) -> None:
+    use_llm(FakeLLM(["COMP-3 is packed decimal."]))
+    events = post(client, {"messages": [{"role": "user", "content": "What is COMP-3?"}]})
+    assert [e for e, _ in events] == ["stage", "stage", "token", "done"]
 
 
 def test_analysis_reaches_the_model(client: TestClient) -> None:
