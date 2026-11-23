@@ -22,7 +22,12 @@
 # These #SBATCH lines are read by sbatch, not bash. You can also override any
 # of them on the command line, e.g.:  sbatch --time=8:00:00 scripts/cluster/serve-vllm.sbatch
 #
-# TODO: set the partition to a GPU partition. Run `sinfo` to list them.
+# GPU choice: on this cluster GPUs have no Slurm type names (--gres=gpu:h200:1
+# is rejected), so the GPU model is picked with a node feature (--constraint).
+# The default asks for the H200 in the dgxh partition. For a shorter wait,
+# accept any GPU with 80 GB or more (H100 80GB or H200) instead:
+#   sbatch --constraint=vram80g scripts/cluster/serve-vllm.sbatch
+# See all partitions and features with:  sinfo -o "%P %N %G %f"
 #SBATCH --partition=dgxh --constraint=h200
 #SBATCH --job-name=granite-vllm
 # GPUs. A dense 30B model in bf16 needs ~60 GB for the weights alone, so one
