@@ -4,7 +4,7 @@
 
 1. **Enable your HPC account and connect to the cluster via the school's VPN.** Follow [this link](https://it.engineering.oregonstate.edu/hpc) and follow the directions under **Getting started with the COE HPC cluster**. This will take you through all the steps needed to access the cluster. It is important to use the VPN so that you can connect to a virtual desktop to run VSCode.
 
-2. **Launch an Advanced Desktop session.** Follow [this link](https://submit-b.hpc.engr.oregonstate.edu/), this will take you to the web GUI for the cluster. Sign in and click on `My Interactive Sessions` in the orange top bar. There, underneath the `Interactive Tabs` box you will see an option for `Advanced Desktop`, which is a way to run a desktop environment on a cluster node. Click on it, and it'll take you to a screen where you can configure the desktop.
+2. **Launch an Advanced Desktop session.** Follow [this link](https://submit-b.hpc.engr.oregonstate.edu/), this will take you to the web GUI for the cluster. Sign in and click on `My Interactive Sessions` in the orange top bar. There, underneath the `Interactive Tabs` box you will see an option for `Advanced Desktop`, which is a way to run a desktop environment on a cluster node. Click on it, and it'll take you to a screen where you can configure the desktop. Under the `Queue/Partition` section, select `dgxh`. This node has access to the best GPUs on the cluster.
 
 In the menu for configuring the desktop, go to **Queue/Partition** and select `dgxh`. This is the most powerful partition of the cluster, and has the GPUs that AI team will be building the application around. 
 
@@ -12,7 +12,7 @@ In the menu for configuring the desktop, go to **Queue/Partition** and select `d
 
 Anyways, put the .tar.gz folder where you want to access vscode from (I put it in my home directory), and extract the application using `tar -xvzf ./filename.tar.gz` (just use tab to autocomplete). It should extract the whole application into a directory called `VSCode-linux-x64`. Feel free to delete the .tar.gz file now. You can now launch VSCode by typing `code` in a directory from the terminal like normal.
 
-4. **Clone our repo into your ENGR account.** If you've already done this you can skip this step.
+4. **Clone our repo into your ENGR account in the ~/hpc-share folder.** The hpc-share folder (it gets created the first time you access the cluster) has tons of space on it where we can download the large models for our project. The normal ENGR accounts are only given 25GB of space, this directory has over 100.
 
 5. **Configure the repo to use the 30B model.** You don't edit any code. The cluster settings live in `coboltutor/backend/profiles/cluster-vllm.conf`, and three scripts in `scripts/cluster/` do the rest. Here's how the pieces fit:
 
@@ -60,7 +60,7 @@ Anyways, put the .tar.gz folder where you want to access vscode from (I put it i
    - **Answers include the model's "thinking" text:** add the `--reasoning-parser` named on the model card to `VLLM_EXTRA_ARGS`.
    - **Requests fail with an error about `reasoning_effort`:** keep `COBOLTUTOR_LLM_REASONING_EFFORT=` empty in the profile. That's the default.
 
-   **Running the model as a batch job instead.** Use this when your desktop's GPU is too small, or for long evaluation runs that shouldn't depend on the desktop staying open. `scripts/cluster/serve-vllm.sbatch` runs the same server on a separate GPU node:
+   **Running the model as a batch job instead.**  `scripts/cluster/serve-vllm.sbatch` runs the same server on a separate GPU node:
 
    ```bash
    # First set #SBATCH --partition in the file to a GPU partition (run `sinfo` to list them).
