@@ -1,0 +1,128 @@
+# RFC: Where to Host Granite for Shared Development, Evaluation, and Demos
+ 
+| Field | Value |
+| --- | --- |
+| Author | Jack Davison |
+| Date | 2026-10-23 (draft); revisaed 2026-11-20 |
+| Status | Accepted |
+| Decision Date | 2026-11-20 |
+| Deciders | Taylor, Jack, Aditi, Michael, Quinn |
+| Superseded By | - |
+ 
+## Problem and Context
+ 
+Our team is building a proof-of-concept VS Code extension that explains IBM Enterprise COBOL and adapts its explanations to each user's problem-solving style. We have already chosen IBM Granite 4.2 as the base model and Python with FastAPI as the backend. What we had not settled was **where the model runs** once we move past individual laptops.
+ 
+The walking skeleton plan runs Granite 4.2 8B locally through Ollama on each developer's machine. That setup is good enough for wiring the system together, but three upcoming needs require a shared, consistent model endpoint. First, the evaluation framework has to produce comparable scores across runs and across teammates. Second, prompt engineering for the adaptation layer should be tuned on the same model we will evaluate. Third, the 30B model, which IBM reports outperforms 8B on tool calling and software engineering benchmarks [1], needs more memory than most of our laptops have [7].
+ 
+The hosting decision is hard to reverse because it commits us to an infrastructure path. It determines who needs accounts and access, where our evaluation numbers come from, what the deployment instructions in our handoff document say, and which model our prompts are tuned against. Switching hosts mid-term would invalidate earlier evaluation results and cost a full sprint of resetup. If we do nothing, each teammate keeps running a different local setup, and neither we nor IBM will be able to reproduce our results.
+ 
+## Options
+ 
+We considered four options. All four serve the same Granite 4.2 weights behind an OpenAI compatible API, so the backend's `llm/` module can talk to any of them. We also looked at two variants that are not listed as separate options. The first was a **shared Granite 8B endpoint on the HPC cluster**. That variant would make scores consistent, but it would not give us the 30B model we plan to evaluate, and it carries all the setup cost of Option A, so it is strictly worse than Option A. The second was **managed open weight inference APIs** (Replicate, Together AI, Hugging Face Inference Endpoints). Those services send our prompts to a third-party processor, just as Option B does, but without Option B's main advantage: IBM can take over a watsonx.ai setup at handoff. A team that is willing to use an outside processor should choose Option B instead.
+ 
+### Option A: Granite 4.2 30B on the OSU College of Engineering HPC cluster via vLLM, plus 8B locally via Ollama
+ 
+Under Option A, we run Granite 4.2 30B under vLLM inside a Slurm job on a DGXH node of the CoE HPC cluster. The cluster provides GPU systems for research and class use and schedules work through Slurm [2]. IBM optimizes Granite 4.2 for vLLM and documents an OpenAI compatible serving path [1][3]. Teammates reach the running job from their laptops over the OSU VPN through an SSH tunnel. Daily feature work that doesn't depend on output quality (UI, request plumbing, unit tests) stays on 8B through Ollama.
+ 
+The cluster costs the team nothing. Weights and prompts stay on university hardware, which mirrors how an enterprise would run the model on premises, and data center GPUs can serve 30B without the heavy quantization a laptop would need. The costs are mostly in access and operations. HPC accounts require faculty sponsorship [2], access requires the OSU VPN [2], and one teammate has to own the Slurm job scripts. Slurm jobs also have time limits and can wait in a queue, so the 30B endpoint is not always on. Running two model sizes means local behavior can differ from evaluated behavior. The Analysis section discusses how we contain that risk.
+ 
+**Right choice when:** the team can get HPC access, jobs can run long enough for prompt sessions and full evaluation runs, and queue waits are short enough for interactive work.
+ 
+### Option B: IBM watsonx.ai (hosted on our partner's platform)
+ 
+Under Option B, we use IBM's hosted platform to serve Granite. IBM documents watsonx.ai as a supported way to run Granite 4.2 [1]. There would be no infrastructure for us to maintain, the endpoint would always be available for demos, and IBM could take over the same setup at handoff. IBM states that it does not use content uploaded to watsonx, or model outputs, to train or improve IBM models [4]. However, watsonx.ai is a paid service with usage-based pricing [1], so Option B depends entirely on our partner providing credits. It also sends our prompts to an external platform, which works against the self hosting story the product is meant to demonstrate.
+ 
+**Right choice when:** cluster access is denied or can't support our workload, and our partner provides credits.
+ 
+### Option C: Do nothing (8B on each laptop via Ollama)
+ 
+Under Option C, we keep the walking skeleton setup: every developer runs Granite 4.2 8B through Ollama, which exposes an OpenAI compatible API on `localhost:11434` [5]. The setup is free and private, it works offline, and it is already in place. Granite 4.2 8B at Q4 quantization needs roughly 6 GB of VRAM [6], so most teammates can run it. The cost shows up once evaluation starts. Teammates run different hardware and quantizations, so the same evaluation set can produce different scores. The 30B model needs about 18 GB of VRAM even at Q4 [7], which most of our laptops can't provide, and every demo would depend on one person's machine.
+ 
+**Right choice when:** the project only needs 8B and one person runs all evaluation on one machine.
+ 
+### Option D: On-demand rented cloud GPU running our own vLLM server
+ 
+Under Option D, we rent a single data center GPU by the hour from a provider such as RunPod or Lambda. We run the same vLLM command we would use on the cluster, then shut the instance down when the session ends. RunPod lists an 80 GB A100 from $1.19 per hour on demand, and other GPU types from $0.35 per hour [9]. An evaluation run measured in hours would cost a few dollars at those rates. Because we would run our own vLLM server, the serving setup, evaluation scripts, and results transfer directly to and from Option A. A rented instance starts within minutes and doesn't wait in a shared queue, which makes it dependable for scheduled demos.
+ 
+The cost comes from the team, not the partner. Someone has to hold the account and remember to stop instances, since an instance left running overnight keeps billing. Prompts also run on outside hardware, though under our own server and not a third party's API.
+ 
+**Right choice when:** the cluster's queue is too slow for interactive work or demos, or access is denied before IBM credits for Option B arrive.
+ 
+## Analysis
+ 
+**Performance.** Options A, B, and D all run on data center GPUs and can serve 30B. Option C limits most of us to quantized 8B, and CPU-only machines run far slower [6]. We do not yet have measured latency for any option. Verification check 2 produces the first latency measurement. Jobs on the DGXH node have so far waited about 5-15 minutes in the queue, and check 4 confirms whether those waits hold up across a full week.
+ 
+**Complexity.** Option C is the simplest because it is already running. Option B adds account setup but no servers. Option D adds a cloud account and a launch script, but no approvals. Option A adds the most: HPC accounts, the VPN, Slurm job scripts, starting vLLM inside a job, and an SSH tunnel from each laptop to the compute node. We accept that complexity because most of it is a one-time setup that one teammate can own and script, and because it costs nothing and runs on infrastructure we control.
+ 
+**Dev/eval model mismatch.** Option A, as drafted, used two models: 8B locally and 30B on the cluster. That split is the main technical risk of the plan. A prompt that produces good adaptations on 30B may produce weaker ones on 8B, and the IBM paper this project builds on found that models differ substantially in how often they adapt [8]. The revised plan narrows the split so that no quality judgment rests on 8B. Prompt engineering for the adaptation layer happens during scheduled prompt sessions: one teammate starts a 30B job, and the others connect through an SSH tunnel. Local 8B is used only for work where output quality doesn't matter, such as UI, request handling, and tests. Any pull request that changes a prompt must include a run of the 20-question smoke set against 30B. We considered keeping a persistent 30B server running for all development, but Slurm job time limits rule out an always-on server on the cluster, and renting one continuously under Option D would cost far more than the occasional sessions we actually need.
+ 
+**Maintainability.** Every option is reached through our `llm/` module, and the base URL and model name come from environment variables, so switching hosts is a configuration change, not a code change. The real switching cost is evaluation comparability. Scores from different hosts or model sizes are not directly comparable, which is why we are making the hosting decision before evaluation work begins.
+ 
+**Security and data use.** Our knowledge base and test code are public: the Open Mainframe Project course, public IBM documentation, and public sample programs. Even so, the product's premise is that enterprise COBOL should not be sent to an outside service. Options A and C demonstrate a fully self-hosted path. Option D runs our own server on rented hardware. Option B relies on an external platform.
+ 
+**Cost.** Options A and C are free to the team. Option D costs roughly $1–2 per GPU-hour [9] and is paid by the team. Option B depends entirely on our partner.
+ 
+## Recommendation and Verification Plan
+ 
+**Recommendation: Option A.** Serve Granite 4.2 30B on the CoE HPC cluster via vLLM for prompt engineering and evaluation, reached from laptops through an SSH tunnel. Use Granite 4.2 8B via Ollama only for local work that doesn't depend on output quality. Option A is free, keeps code on university hardware, demonstrates the self-hosted deployment an enterprise would use, and gives every evaluation run the same model and hardware.
+ 
+**Fallbacks.** If the cluster can't support a workload, that workload moves without changing the rest of the plan. Evaluation moves to Option B if IBM credits are in place, and otherwise to Option D. Demos and interactive prompt sessions move to Option D if queue waits fail check 4. Because Options A and D run the same vLLM server, results from the two are comparable when the GPU type is recorded alongside them.
+ 
+**Verification.** Each check has a pass condition and a stated response to failure:
+ 
+1. **Access check.** HPC accounts are approved, with faculty sponsorship, for the teammates who run evaluations. *Deadline: 2026-12-11, the end of fall term.* If accounts aren't approved by then, we ask our partner about watsonx.ai credits (Option B) and run the spike on Option D in the meantime.
+2. **End-to-end spike (1-2 days, after access).** Start vLLM with Granite 4.2 30B inside a Slurm job, open an SSH tunnel from a laptop through the login node to the compute node's vLLM port, and call the endpoint through our `llm/` module. *Pass:* a streamed response reaches the VS Code extension on a laptop over the VPN, and we record its time to first token. *Fail:* if compute-node ports can't be reached from the login node, we ask CoE IT for a supported route. If no route exists, the cluster is used only for batch evaluation, and interactive work moves to Option D.
+3. **Job length check.** Confirm that the maximum job time on the GPU partition covers a full evaluation run (3 runs of the full evaluation set) and a 3-hour prompt session. *Fail:* split evaluation runs across jobs, one run per job.
+4. **Queue wait check.** Over one week, submit the 30B job to the DGXH node five times at different times of day, including a weekday afternoon, and log each wait in `eval/infra-log.md`. *Pass:* median wait of 15 minutes or less, and no wait longer than 1 hour. *Fail:* batch evaluation stays on the cluster, since it can wait in the queue overnight, while prompt sessions and demos move to Option D.
+5. **Consistency test.** Run the same 20-question evaluation set three times on 30B with the decoding settings committed in `SUCCESS_METRICS.md` (temperature 0.2, seeds 1-3). *Pass:* no question changes grade between any two runs, or at most one does. *Fail:* re-test at temperature 0. If grades still vary, we report every result as a 3-run mean with its range and treat differences smaller than that range as noise.
+6. **Mismatch check.** Run the same set on local 8B and record the gap in `eval/results/`, so the team knows how far local behavior is from evaluated behavior. No pass threshold applies, because the revised plan no longer judges quality on 8B. If the gap is large, we have more reason to keep prompt work on 30B.
+## Constraints
+ 
+- **Licensing:** Granite 4.2 is Apache 2.0 [1][6], so self-hosting on the cluster or a rented GPU, and commercial use after handoff, are both allowed.
+- **Data use:** only public COBOL and public documentation are sent to the model. The cluster is a shared university resource, so we will not store credentials or private data in job scripts or shared directories. API keys for Option D stay in local environment files, never in the repository.
+- **IP:** prompts, adaptation templates, and evaluation data are our team's work. Hosting does not change ownership.
+- **Partner confidentiality:** no partner-confidential code is used, per the brief's requirement to use public documentation and sample applications. If that requirement changes, the partner must approve running that code on university or rented hardware.
+## Delegation and Validation
+ 
+- **Handed to AI (Claude):** finding sources on Granite 4.2 hosting, VRAM requirements, the OSU HPC cluster, watsonx.ai data policy, Ollama's API, and on-demand GPU pricing. I worked with Claude to write the draft and to revise it against peer and instructor feedback.
+- **Checks that exist in our repo:** pull requests require review before merging, per CONTRIBUTING.md. Node CI runs on GitHub Actions. There is no Python CI yet, so the spike will be validated manually.
+- **Where I validated myself:** I opened every cited source and confirmed each claim. I confirmed with Taylor, who talked with CoE IT about which GPUs and job limits are available. Because the hosting decision is hard to reverse, approved HPC access (check 1) and a passing spike (check 2) are the checkpoints before the team builds evaluation on the cluster.
+## Decision
+ 
+**Accepted: Option A**, decided by the team on 2026-11-20 after the peer review and the instructor's comments. Granite 4.2 30B will be served on the CoE HPC cluster via vLLM for prompt engineering and evaluation, reached through an SSH tunnel, and Granite 4.2 8B via Ollama will be used only for local work that doesn't depend on output quality. Option D (rented GPU) is the fallback for demos and interactive sessions, and for evaluation if HPC access isn't approved by 2026-12-11. Option B (watsonx.ai) is the evaluation fallback if IBM provides credits. The decision is revisited only if check 1 or check 2 fails.
+ 
+## References
+ 
+1. IntuitionLabs, "IBM Granite 4.2 model guide." https://intuitionlabs.ai/articles/ibm-granite-4-2-model-guide
+2. Oregon State University College of Engineering IT, "HPC." https://it.engineering.oregonstate.edu/hpc
+3. AICybr, "IBM Granite 4.2 Local Deployment Guide." https://aicybr.com/blog/ibm-granite-4-2-local-deployment-guide
+4. IBM, "Security and privacy for foundation models" (watsonx documentation). https://eu-gb.dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-security.html?context=wx
+5. Ollama, "OpenAI compatibility." https://docs.ollama.com/api/openai-compatibility
+6. llmrun.dev, "Granite 4.2 8B — Hardware Requirements." https://llmrun.dev/model/ibm-granite-granite-4-2-8b
+7. llmrun.dev, "Granite 4.2 30B — Hardware Requirements." https://llmrun.dev/model/ibm-granite-granite-4-2-30b
+8. Anderson, Piorkowski, Weisz, Burnett, and Varshney, "Can LLM Code Explanations Adapt to Diverse Problem-Solvers' Needs?" (2026).
+9. RunPod, "GPU Cloud Pricing" (pricing updated July 2026). https://www.runpod.io/gpu-cloud/pricing
+---
+ 
+# Revision Log
+ 
+| Source | Feedback | Decision | Where or why |
+| --- | --- | --- | --- |
+| Reviewer 1 | The problem framing is clear to a newcomer, and the stakes of reversing the decision are concrete | Kept | Problem and Context: content unchanged. Only wording was tightened |
+| Reviewer 1 | On-demand cloud GPU rental (RunPod, Lambda, AWS, GCP) is a missing option and a cheap fallback if HPC and IBM credits both fall through | Changed | Options: new Option D (rented GPU running our own vLLM server, with sourced pricing [9]). Analysis: D added to performance, complexity, security, and cost. Recommendation: D is now the fallback for demos and interactive sessions, and for evaluation when IBM credits aren't in place |
+| Reviewer 1 | Managed open-weight inference APIs (Replicate, Together AI, Hugging Face Endpoints) are a missing option | Declined | Those APIs send prompts to a third-party processor, as Option B does, but without B's handoff advantage (IBM can take over a watsonx.ai setup), and they cut against the self-hosting premise. The reasoning is now stated in the Options introduction |
+| Reviewer 1 | Serving the 8B model on the HPC cluster is a missing option | Declined | A shared 8B endpoint would fix score consistency but not give us the 30B model we evaluate, and it carries all of Option A's setup cost, so it is strictly worse than A. Stated in the Options introduction |
+| Reviewer 1 | Option A bundles the move to HPC with keeping 8B for development, which creates the dev/eval mismatch. Developers should use 30B through a shared endpoint and SSH port forwarding | Changed | Analysis (Dev/eval model mismatch) and Recommendation: prompt engineering now runs on 30B in scheduled sessions through an SSH tunnel. Local 8B is limited to UI, plumbing, and tests. Prompt-changing PRs must include a 30B smoke-set run. Check 6 no longer has a pass threshold because quality is no longer judged on 8B |
+| Reviewer 1 | Keep a persistent 30B server running for development | Declined | Slurm job time limits rule out an always-on server on the cluster, and renting one continuously (Option D) would cost far more than the occasional prompt sessions we need. Explained in Analysis (Dev/eval model mismatch) |
+| Reviewer 1 | Check 1's "[date]" placeholder means the team can't objectively trigger the fallback | Changed | Verification check 1: hard deadline of 2026-12-11 (the end of fall term), with a defined action (ask IBM about credits and run the spike on Option D) |
+| Reviewer 1 | Check 4's "threshold (TBD)" leaves failure undefined. A determinism or variance threshold is needed | Changed | Verification check 5 (renumbered): fixed decoding settings from SUCCESS_METRICS.md. Pass if at most 1 of 20 questions changes grade between runs. Failure leads to a temperature-0 re-test, then reporting as a 3-run mean with range |
+| Reviewer 1 | Check 3 checks maximum job length but not Slurm queue wait, which would break interactive work and live demos | Changed | Verification: new check 4 (queue wait). Five submissions over a week are logged. Pass if median ≤ 15 min and none > 1 hour, consistent with the 5–15 minute waits seen so far on the DGXH node. On failure, demos and prompt sessions move to Option D. Check 3 now also names the job lengths it must cover |
+| Reviewer 1 | Nothing verifies that a compute node's port can be forwarded to a local VS Code client | Changed | Verification check 2: the spike now requires an SSH tunnel through the login node to the compute node and a streamed response in the extension on a laptop, with a stated fallback if no route exists |
+| Reviewer 1 | Checks 2 (end-to-end spike) and 5 (8B vs. 30B mismatch) directly test the plumbing and the main risk | Kept | Both checks remain (now checks 2 and 6). Check 2 was extended to cover tunneling, as described above |
+| Instructor | The peer reviewers gave good feedback | Changed | Acted on through the Reviewer 1 rows above: one new option, two options declined with reasons, a revised mismatch plan, and three verification checks tightened or added |
+| Instructor | The draft reads too much like an outline and is a bit sparse | Changed | Options: each option is now prose paragraphs, not Benefits/Costs bullets. Analysis: every dimension now explains its reasoning and covers Option D. Recommendation: fallbacks are explained, and each check now has a pass condition and a failure action |
+| Instructor | The bare "this" is vague unless a noun follows it | Changed | Every bare "this" now has a noun after it or was reworded. Examples: "the hosting decision is hard to reverse" (Problem and Context), "That split is the main technical risk" (Analysis), "which is why we are making the hosting decision" (Analysis), "Because the hosting decision is hard to reverse" (Delegation and Validation) |
+ 
+*Only one peer review was received for this RFC. No second review was submitted or supplied by the instruction team, so the log covers Reviewer 1 and the instructor comments.*
+ 

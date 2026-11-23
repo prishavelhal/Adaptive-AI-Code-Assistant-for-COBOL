@@ -3,6 +3,8 @@
 Routes:
     GET  /health    - is the backend up, and is the model ready?
     POST /api/chat  - send the conversation, get the answer back as an SSE stream
+    POST /api/agent-chat - same request and stream, answered by the agent pipeline
+                           (see agents/; mounted at the bottom of this file)
 
 Run it with ``uv run coboltutor-backend`` (or via Docker Compose; see the repo README).
 """
@@ -17,6 +19,7 @@ from fastapi import Depends, FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from .agents.routes import create_agent_router
 from .config import Settings, get_settings
 from .llm import AnswerTruncatedError, EmptyAnswerError, LLMClient, OpenAICompatibleLLM
 from .prompts import build_messages
@@ -146,3 +149,10 @@ async def chat(request: ChatRequest, settings: SettingsDep, llm: LLMDep) -> Stre
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# --- Agent pipeline ----------------------------------------------------------
+# POST /api/agent-chat lives in agents/routes.py. It reuses this module's LLM
+# dependency and error messages, so both endpoints behave the same way and tests
+# can override get_llm once for both. /api/chat above is unchanged.
+app.include_router(create_agent_router(get_llm=get_llm, describe_error=_friendly_error))

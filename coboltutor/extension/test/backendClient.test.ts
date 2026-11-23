@@ -1,6 +1,6 @@
 // Tests streamChat against a mocked `fetch`, so no backend has to be running.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BackendError, streamChat } from "../src/backendClient";
+import { AGENT_CHAT_PATH, BackendError, streamChat } from "../src/backendClient";
 
 /** Build a fetch Response whose body streams the given chunks. */
 function sseResponse(chunks: string[], status = 200): Response {
@@ -64,5 +64,52 @@ describe("streamChat", () => {
     await expect(
       streamChat("http://x", REQUEST, new AbortController().signal, { onToken: () => {} }),
     ).rejects.toThrow(/HTTP 422/);
+  });
+});
+
+describe("streamChat with the agent endpoint", () => {
+  const VERIFICATION = {
+    issues: [{ source: "check", message: "The answer mentions line 99.", line: 99 }],
+    reviewed_by_model: false,
+  };
+  const AGENT_STREAM = [
+    'event: stage\ndata: {"name":"analyze"}\n\n',
+    'event: stage\ndata: {"name":"explain"}\n\n',
+    'event: token\ndata: {"text":"Hi"}\n\n',
+    'event: stage\ndata: {"name":"verify"}\n\n',
+    `event: verification\ndata: ${JSON.stringify(VERIFICATION)}\n\n`,
+    "event: done\ndata: {}\n\n",
+  ];
+
+  it("posts to the path it is given and reports stages and verification", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse(AGENT_STREAM));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const seen: string[] = [];
+    let verification: unknown;
+    await streamChat(
+      "http://x",
+      REQUEST,
+      new AbortController().signal,
+      {
+        onToken: (t) => seen.push(`token:${t}`),
+        onStage: (s) => seen.push(`stage:${s}`),
+        onVerification: (v) => (verification = v),
+      },
+      AGENT_CHAT_PATH,
+    );
+
+    expect(fetchMock.mock.calls[0]![0]).toBe("http://x/api/agent-chat");
+    expect(seen).toEqual(["stage:analyze", "stage:explain", "token:Hi", "stage:verify"]);
+    expect(verification).toEqual(VERIFICATION);
+  });
+
+  it("still works for callers that only handle tokens (the existing /api/chat usage)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(AGENT_STREAM)));
+    const tokens: string[] = [];
+    await streamChat("http://x", REQUEST, new AbortController().signal, {
+      onToken: (t) => tokens.push(t),
+    });
+    expect(tokens).toEqual(["Hi"]);
   });
 });
